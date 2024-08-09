@@ -5,16 +5,17 @@
 ### ----------------------------------- variable declaration ----------------------------------- ###
 
 # Material Properties
-variable particle_diameter             equal 100        # [m] particles diameter 
-variable bond_out_diameter             equal 100        # [m] bond outer diameter 
-variable bond_in_diameter              equal 0.0        # [m] bond inner diameter 
-variable bond_length                   equal 100        # [m] distance between two particles in bond
-variable bond_damp_type                equal 1          # [-] Use Yu Guo Damping
-variable bond_damp_val                 equal 50.0       # [-] from cantilever beam; shear uses 0.05; make higher..?
-variable particle_density              equal 910.0      # [kg/m3] 3D density
-variable elastic_modulus               equal 1.0e8      # [Pa]
-variable poissons_ratio                equal 0.3        # [-]
-
+variable particle_diameter       equal 100        # [m] particles diameter 
+variable bond_out_diameter       equal 100        # [m] bond outer diameter 
+variable bond_in_diameter        equal 0.0        # [m] bond inner diameter 
+variable bond_length             equal 100        # [m] distance between two particles in bond
+variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
+variable bond_damp_val           equal 50.0       # [-] from cantilever beam; shear uses 0.05; make higher..?
+variable particle_density        equal 910.0      # [kg/m3] 3D density
+variable elastic_modulus         equal 1.0e8      # [Pa]
+variable poissons_ratio          equal 0.3        # [-]
+variable normal_strength         equal 1e5        # [N] bond critical normal strength
+variable shear_strength          equal 1e6        # [N] bond critical shear strength
 
 # Simulation Parameters
 variable tensioning_force        equal 1.0e5   # [N] strength of tensioning force
@@ -26,9 +27,8 @@ variable output_time             equal 5.0e-5  # [s] how often we print to the .
 
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
-variable bond_shear_modulus      equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
-variable bond_out_per            equal ${bond_out_diameter}/${particle_diameter}                      # ? = 1
-variable bond_in_per             equal ${bond_in_diameter}/${particle_diameter}                       # ? = 0
+variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
+variable bond_skin               equal 1.01*${particle_diameter}
 
 # Calculate dt using the bond model
 variable r2                      equal ${particle_radius}*${particle_radius}
@@ -84,4 +84,45 @@ create_atoms 1 single 200.0 100.0 100.0 units box      # create one atom of type
 set atom 1 diameter ${particle_diameter} density ${particle_density} vx ${vx_left}  # assign atom 1 initial values
 set atom 2 diameter ${particle_diameter} density ${particle_density} vx ${vx_right} # assign atom 2 initial values
 
-###----------------------------------- run & output simulation ----------------------------------###
+run 0                                                                               # insert particles
+
+### ----------------------------------- bond grains ---------------------------------- ###
+
+# create simple bond (no holes) with properties; see Notion for more details 
+bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+
+# compute forces, torques, and eq dist from the bonds
+compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
+
+fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # set bond properties; every itype jtype cutoff btype newperts
+run 1                                                          # bond grains
+
+fix_modify bondcr every 0 # do not create new bonds after this line
+
+# timestep checking?
+fix dtBond all check/timestep/bond 1 0.1 # Check the time step for the bond
+unfix dtBond
+
+### ----------------------------------- run & output simulation ---------------------------------- ###
+
+# Set dump file parameters for paraview
+dump dmp all custom ${fileprint_step} post/dump*.liggghts id type x y z vx vy vz fx fy fz omegax omegay omegaz radius
+
+# Get bond force and torque values
+dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
+    c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16]
+
+# Get parameters of right ball to export to out.csv
+variable sim_time equal step*${dt}
+variable x equal x[2]
+variable y equal y[2]
+variable vx equal vx[2]
+
+# Set beam.csv output
+fix outfile all print ${output_step} "${sim_time}, ${x}, ${y}, ${vx}" file out.csv screen no title "t, dt, x, z"
+
+# Ignore lost atoms and do not normalize output
+thermo_modify lost ignore norm no
+
+# Run 
+run 2000
