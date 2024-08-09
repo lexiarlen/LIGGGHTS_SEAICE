@@ -1,0 +1,87 @@
+# 3D Simulation of Tensioning a Bond
+# By Lexi Arlen August 2024
+
+
+### ----------------------------------- variable declaration ----------------------------------- ###
+
+# Material Properties
+variable particle_diameter             equal 100        # [m] particles diameter 
+variable bond_out_diameter             equal 100        # [m] bond outer diameter 
+variable bond_in_diameter              equal 0.0        # [m] bond inner diameter 
+variable bond_length                   equal 100        # [m] distance between two particles in bond
+variable bond_damp_type                equal 1          # [-] Use Yu Guo Damping
+variable bond_damp_val                 equal 50.0       # [-] from cantilever beam; shear uses 0.05; make higher..?
+variable particle_density              equal 910.0      # [kg/m3] 3D density
+variable elastic_modulus               equal 1.0e8      # [Pa]
+variable poissons_ratio                equal 0.3        # [-]
+
+
+# Simulation Parameters
+variable tensioning_force        equal 1.0e5   # [N] strength of tensioning force
+variable vx_left                 equal -0.5     # [m/s] applied velocity to left particle
+variable vx_right                equal -0.5     # [m/s] applied velocity to right particle
+variable fileprint_time          equal 1.0e-3  # [s] how often we print to the file
+variable thermo_time             equal 1.0e-4  # [s] how often we print to the screen 
+variable output_time             equal 5.0e-5  # [s] how often we print to the .csv file
+
+# Derived Material Properties
+variable particle_radius         equal 0.5*${particle_diameter}
+variable bond_shear_modulus      equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
+variable bond_out_per            equal ${bond_out_diameter}/${particle_diameter}                      # ? = 1
+variable bond_in_per             equal ${bond_in_diameter}/${particle_diameter}                       # ? = 0
+
+# Calculate dt using the bond model
+variable r2                      equal ${particle_radius}*${particle_radius}
+variable r3                      equal ${r2}*${particle_radius}
+variable K                       equal ${youngs_modulus}*PI*${r2}/${particle_diameter}
+variable m                       equal 4.0*PI*${r3}*${particle_density}/3.0
+variable w                       equal sqrt($K/$m)
+variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w) # no clue where this comes from
+
+# Simulation Derived Parameters
+variable fileprint_step          equal ceil(${fileprint_time}/${dt})
+variable output_step             equal ceil(${output_time}/${dt})
+variable thermo_step             equal ceil(${thermo_time}/${dt})
+
+### ----------------------------------- build simulation ----------------------------------- ###
+
+# Preliminaries
+units si                                                                # SI units
+dimension 2                                                             # set dimension
+atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6     # specify particle and bond style
+hard_particles yes                                                      # need for high elastic modulus
+newton off                                                              # don't use Newton's 3rd law
+
+# Domain
+boundary f f f                                                     # fixed boundary conditions in x y z
+region domain block 0.0 300.0 0.0 200.0 0.0 200.0 units box        # (min X, max X, min Y, max Y, min Z, max Z)
+create_box 1 domain                                                # create box with domain above and 1 particle type
+
+# Numerics
+processors 1 1 1                        # 1 processor per axis; to split num processors across axises, use '*'
+communicate single vel yes              # ghost particles are given position and velocity information
+fix integr all nve/sphere               # set the integrator st moles, velocity, and energy are conserved
+timestep ${dt}                          # [s] timestep
+neighbor 1.0 bin                        # skin distance to specify bin size for neighbor list generation
+neigh_modify delay 0                    # don't delay the generation of neighbor lists
+
+# Contact style
+pair_style gran model hertz tangential history   # Hertz-Mindlin
+pair_coeff * *                                   # Contact coeffs from material properties not force field
+
+# Bond style
+bond_style gran                                  # linear parallel bond
+
+# Specify and create atoms
+fix m1 all property/global youngsModulus peratomtype ${elastic_modulus}  # set the elastic modulus
+fix m2 all property/global poissonsRatio peratomtype ${poissons_ratio}   # set Poisson's ratio
+fix m3 all property/global coefficientRestitution peratomtypepair 1 0.5  # set restituion coefficient to atom type 1
+fix m4 all property/global coefficientFriction peratomtypepair 1 0.7     # set friction coefficient to atom type 1
+
+create_atoms 1 single 100.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 1 assigned by default
+create_atoms 1 single 200.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 1 assigned by default
+
+set atom 1 diameter ${particle_diameter} density ${particle_density} vx ${vx_left}  # assign atom 1 initial values
+set atom 2 diameter ${particle_diameter} density ${particle_density} vx ${vx_right} # assign atom 2 initial values
+
+###----------------------------------- run & output simulation ----------------------------------###
