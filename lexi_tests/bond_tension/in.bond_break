@@ -6,9 +6,9 @@
 
 # Material Properties
 variable particle_diameter       equal 100        # [m] particles diameter 
-variable bond_out_diameter       equal 100        # [m] bond outer diameter 
-variable bond_in_diameter        equal 0.0        # [m] bond inner diameter 
-variable bond_length             equal 100        # [m] distance between two particles in bond
+#variable bond_out_diameter       equal 100        # [m] bond outer diameter 
+#variable bond_in_diameter        equal 0.0        # [m] bond inner diameter 
+#variable bond_length             equal 100        # [m] distance between two particles in bond
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
 variable bond_damp_val           equal 50.0       # [-] from cantilever beam; shear uses 0.05; make higher..?
 variable particle_density        equal 910.0      # [kg/m3] 3D density
@@ -19,21 +19,21 @@ variable shear_strength          equal 1e6        # [N] bond critical shear stre
 
 # Simulation Parameters
 variable tensioning_force        equal 1.0e5   # [N] strength of tensioning force
-variable vx_left                 equal -0.5     # [m/s] applied velocity to left particle
-variable vx_right                equal -0.5     # [m/s] applied velocity to right particle
-variable fileprint_time          equal 1.0e-3  # [s] how often we print to the file
-variable thermo_time             equal 1.0e-4  # [s] how often we print to the screen 
-variable output_time             equal 5.0e-5  # [s] how often we print to the .csv file
+variable vx_left                 equal -0.5    # [m/s] applied velocity to left particle
+variable vx_right                equal 0.5     # [m/s] applied velocity to right particle
+variable fileprint_time          equal 1.0e-1  # [s] how often we print to the file
+variable thermo_time             equal 1.0e-1  # [s] how often we print to the screen 
+variable output_time             equal 1.0e-3  # [s] how often we print to the .csv file
 
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
 variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
-variable bond_skin               equal 1.01*${particle_diameter}
+variable bond_skin               equal 1.0*${particle_diameter}
 
 # Calculate dt using the bond model
 variable r2                      equal ${particle_radius}*${particle_radius}
 variable r3                      equal ${r2}*${particle_radius}
-variable K                       equal ${youngs_modulus}*PI*${r2}/${particle_diameter}
+variable K                       equal ${elastic_modulus}*PI*${r2}/${particle_diameter}
 variable m                       equal 4.0*PI*${r3}*${particle_density}/3.0
 variable w                       equal sqrt($K/$m)
 variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w) # no clue where this comes from
@@ -47,23 +47,19 @@ variable thermo_step             equal ceil(${thermo_time}/${dt})
 
 # Preliminaries
 units si                                                                # SI units
-dimension 2                                                             # set dimension
+#dimension 2                                                             # set dimension
 atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6     # specify particle and bond style
 hard_particles yes                                                      # need for high elastic modulus
-newton off                                                              # don't use Newton's 3rd law
+newton off
+processors 1 1 1                        # 1 processor per axis; if using multiple processors, use '*'
+communicate single vel yes              # ghost particles are given position and velocity information
+neighbor 1.0 bin                        # skin distance to specify bin size for neighbor list generation
+neigh_modify delay 0                    # don't delay the generation of neighbor lists                                                              # don't use Newton's 3rd law
 
 # Domain
 boundary f f f                                                     # fixed boundary conditions in x y z
 region domain block 0.0 300.0 0.0 200.0 0.0 200.0 units box        # (min X, max X, min Y, max Y, min Z, max Z)
 create_box 1 domain                                                # create box with domain above and 1 particle type
-
-# Numerics
-processors 1 1 1                        # 1 processor per axis; to split num processors across axises, use '*'
-communicate single vel yes              # ghost particles are given position and velocity information
-fix integr all nve/sphere               # set the integrator st moles, velocity, and energy are conserved
-timestep ${dt}                          # [s] timestep
-neighbor 1.0 bin                        # skin distance to specify bin size for neighbor list generation
-neigh_modify delay 0                    # don't delay the generation of neighbor lists
 
 # Contact style
 pair_style gran model hertz tangential history   # Hertz-Mindlin
@@ -83,18 +79,21 @@ create_atoms 1 single 200.0 100.0 100.0 units box      # create one atom of type
 
 set atom 1 diameter ${particle_diameter} density ${particle_density} vx ${vx_left}  # assign atom 1 initial values
 set atom 2 diameter ${particle_diameter} density ${particle_density} vx ${vx_right} # assign atom 2 initial values
+# Set bond coefficients for a simple bond (no holes) with properties below; see Notion for more details 
+bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
 
-run 0                                                                               # insert particles
+# Numerics
+fix integr all nve/sphere               # set the integrator st moles, velocity, and energy are conserved
+timestep ${dt}                          # [s] timestep
+
+run 0                                   # insert particles
 
 ### ----------------------------------- bond grains ---------------------------------- ###
-
-# create simple bond (no holes) with properties; see Notion for more details 
-bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
 
 # compute forces, torques, and eq dist from the bonds
 compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
 
-fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # set bond properties; every itype jtype cutoff btype newperts
+fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # add bonds?; every itype jtype cutoff btype newperts
 run 1                                                          # bond grains
 
 fix_modify bondcr every 0 # do not create new bonds after this line
@@ -104,6 +103,8 @@ fix dtBond all check/timestep/bond 1 0.1 # Check the time step for the bond
 unfix dtBond
 
 ### ----------------------------------- run & output simulation ---------------------------------- ###
+
+shell mkdir post # make directory to output data
 
 # Set dump file parameters for paraview
 dump dmp all custom ${fileprint_step} post/dump*.liggghts id type x y z vx vy vz fx fy fz omegax omegay omegaz radius
@@ -118,8 +119,11 @@ variable x equal x[2]
 variable y equal y[2]
 variable vx equal vx[2]
 
-# Set beam.csv output
-fix outfile all print ${output_step} "${sim_time}, ${x}, ${y}, ${vx}" file out.csv screen no title "t, dt, x, z"
+# Configure output to out.csv
+fix outfile all print ${output_step} "${sim_time}, ${dt}, ${x}, ${y}, ${vx}" file out.csv screen no title "t, dt, x, y, vx"
+
+# Set output frequency 
+thermo 100 # not sure if this is necessary 
 
 # Ignore lost atoms and do not normalize output
 thermo_modify lost ignore norm no

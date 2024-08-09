@@ -1,0 +1,289 @@
+LIGGGHTS (Version LIGGGHTS-PUBLIC-FIBERS 3.8.0, compiled 2024-08-09-12:48:33 by arlenlex, git commit 9ac9b48460642a344aa2f18bbbb435c5a3e8fde6)
+# 3D Simulation of Tensioning a Bond
+# By Lexi Arlen August 2024
+
+
+### ----------------------------------- variable declaration ----------------------------------- ###
+
+# Material Properties
+variable particle_diameter       equal 100        # [m] particles diameter
+#variable bond_out_diameter       equal 100        # [m] bond outer diameter
+#variable bond_in_diameter        equal 0.0        # [m] bond inner diameter
+#variable bond_length             equal 100        # [m] distance between two particles in bond
+variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
+variable bond_damp_val           equal 50.0       # [-] from cantilever beam; shear uses 0.05; make higher..?
+variable particle_density        equal 910.0      # [kg/m3] 3D density
+variable elastic_modulus         equal 1.0e8      # [Pa]
+variable poissons_ratio          equal 0.3        # [-]
+variable normal_strength         equal 1e5        # [N] bond critical normal strength
+variable shear_strength          equal 1e6        # [N] bond critical shear strength
+
+# Simulation Parameters
+variable tensioning_force        equal 1.0e5   # [N] strength of tensioning force
+variable vx_left                 equal -0.5    # [m/s] applied velocity to left particle
+variable vx_right                equal 0.5     # [m/s] applied velocity to right particle
+variable fileprint_time          equal 1.0e-1  # [s] how often we print to the file
+variable thermo_time             equal 1.0e-1  # [s] how often we print to the screen
+variable output_time             equal 1.0e-3  # [s] how often we print to the .csv file
+
+# Derived Material Properties
+variable particle_radius         equal 0.5*${particle_diameter}
+variable particle_radius         equal 0.5*100
+variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
+variable shear_modulus           equal 100000000/(2.0*(1.0+${poissons_ratio})) 
+variable shear_modulus           equal 100000000/(2.0*(1.0+0.3)) 
+variable bond_skin               equal 1.0*${particle_diameter}
+variable bond_skin               equal 1.0*100
+
+# Calculate dt using the bond model
+variable r2                      equal ${particle_radius}*${particle_radius}
+variable r2                      equal 50*${particle_radius}
+variable r2                      equal 50*50
+variable r3                      equal ${r2}*${particle_radius}
+variable r3                      equal 2500*${particle_radius}
+variable r3                      equal 2500*50
+variable K                       equal ${elastic_modulus}*PI*${r2}/${particle_diameter}
+variable K                       equal 100000000*PI*${r2}/${particle_diameter}
+variable K                       equal 100000000*PI*2500/${particle_diameter}
+variable K                       equal 100000000*PI*2500/100
+variable m                       equal 4.0*PI*${r3}*${particle_density}/3.0
+variable m                       equal 4.0*PI*125000*${particle_density}/3.0
+variable m                       equal 4.0*PI*125000*910/3.0
+variable w                       equal sqrt($K/$m)
+variable w                       equal sqrt(7853981633.97448/$m)
+variable w                       equal sqrt(7853981633.97448/476474885.794452)
+variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w) # no clue where this comes from
+variable dt                      equal 0.95/((1.0+2.9392*50)*$w) 
+variable dt                      equal 0.95/((1.0+2.9392*50)*4.05998971470575) 
+
+# Simulation Derived Parameters
+variable fileprint_step          equal ceil(${fileprint_time}/${dt})
+variable fileprint_step          equal ceil(0.1/${dt})
+variable fileprint_step          equal ceil(0.1/0.00158144593510098)
+variable output_step             equal ceil(${output_time}/${dt})
+variable output_step             equal ceil(0.001/${dt})
+variable output_step             equal ceil(0.001/0.00158144593510098)
+variable thermo_step             equal ceil(${thermo_time}/${dt})
+variable thermo_step             equal ceil(0.1/${dt})
+variable thermo_step             equal ceil(0.1/0.00158144593510098)
+
+### ----------------------------------- build simulation ----------------------------------- ###
+
+# Preliminaries
+units si                                                                # SI units
+#dimension 2                                                             # set dimension
+atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6     # specify particle and bond style
+hard_particles yes                                                      # need for high elastic modulus
+newton off
+processors 1 1 1                        # 1 processor per axis; if using multiple processors, use '*'
+communicate single vel yes              # ghost particles are given position and velocity information
+neighbor 1.0 bin                        # skin distance to specify bin size for neighbor list generation
+neigh_modify delay 0                    # don't delay the generation of neighbor lists                                                              # don't use Newton's 3rd law
+
+# Domain
+boundary f f f                                                     # fixed boundary conditions in x y z
+region domain block 0.0 300.0 0.0 200.0 0.0 200.0 units box        # (min X, max X, min Y, max Y, min Z, max Z)
+create_box 1 domain                                                # create box with domain above and 1 particle type
+Created orthogonal box = (0 0 0) to (300 200 200)
+  1 by 1 by 1 MPI processor grid
+
+# Contact style
+pair_style gran model hertz tangential history   # Hertz-Mindlin
+pair_coeff * *                                   # Contact coeffs from material properties not force field
+
+# Bond style
+bond_style gran                                  # linear parallel bond
+WARNING: Bond granular: This is a beta version - be careful! (../bond_gran.cpp:106)
+
+# Specify and create atoms
+fix m1 all property/global youngsModulus peratomtype ${elastic_modulus}  # set the elastic modulus
+fix m1 all property/global youngsModulus peratomtype 100000000  
+fix m2 all property/global poissonsRatio peratomtype ${poissons_ratio}   # set Poisson's ratio
+fix m2 all property/global poissonsRatio peratomtype 0.3   
+fix m3 all property/global coefficientRestitution peratomtypepair 1 0.5  # set restituion coefficient to atom type 1
+fix m4 all property/global coefficientFriction peratomtypepair 1 0.7     # set friction coefficient to atom type 1
+
+create_atoms 1 single 100.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 1 assigned by default
+Created 1 atoms
+create_atoms 1 single 200.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 1 assigned by default
+Created 1 atoms
+
+set atom 1 diameter ${particle_diameter} density ${particle_density} vx ${vx_left}  # assign atom 1 initial values
+set atom 1 diameter 100 density ${particle_density} vx ${vx_left}  
+set atom 1 diameter 100 density 910 vx ${vx_left}  
+set atom 1 diameter 100 density 910 vx -0.5  
+  1 settings made for diameter
+  1 settings made for density
+  1 settings made for vx
+set atom 2 diameter ${particle_diameter} density ${particle_density} vx ${vx_right} # assign atom 2 initial values
+set atom 2 diameter 100 density ${particle_density} vx ${vx_right} 
+set atom 2 diameter 100 density 910 vx ${vx_right} 
+set atom 2 diameter 100 density 910 vx 0.5 
+  1 settings made for diameter
+  1 settings made for density
+  1 settings made for vx
+# Set bond coefficients for a simple bond (no holes) with properties below; see Notion for more details
+bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+bond_coeff 1 1 0 100000000 ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+bond_coeff 1 1 0 100000000 38461538.4615385 ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+bond_coeff 1 1 0 100000000 38461538.4615385 1 ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+bond_coeff 1 1 0 100000000 38461538.4615385 1 50 1 ${normal_strength} ${shear_strength}
+bond_coeff 1 1 0 100000000 38461538.4615385 1 50 1 100000 ${shear_strength}
+bond_coeff 1 1 0 100000000 38461538.4615385 1 50 1 100000 1000000
+
+# Numerics
+fix integr all nve/sphere               # set the integrator st moles, velocity, and energy are conserved
+timestep ${dt}                          # [s] timestep
+timestep 0.00158144593510098                          
+
+run 0                                   # insert particles
+Setting up run at Fri Aug  9 16:18:21 2024
+
+Memory usage per processor = 9.75851 Mbytes
+    Step    Atoms         KinEng            CPU 
+       0        2  1.1911872e+08              0 
+Loop time of 3.32991e-07 on 1 procs for 0 steps with 2 atoms, finish time Fri Aug  9 16:18:21 2024
+
+
+Pair  time (%) = 0 (0)
+Bond  time (%) = 0 (0)
+Neigh time (%) = 0 (0)
+Comm  time (%) = 0 (0)
+Outpt time (%) = 0 (0)
+Other time (%) = 3.32991e-07 (100)
+
+Nlocal:    2 ave 2 max 2 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    1 ave 1 max 1 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 1
+Ave neighs/atom = 0.5
+Ave special neighs/atom = 0
+Neighbor list builds = 0
+Dangerous builds = 0
+
+### ----------------------------------- bond grains ---------------------------------- ###
+
+# compute forces, torques, and eq dist from the bonds
+compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
+
+fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # add bonds?; every itype jtype cutoff btype newperts
+fix bondcr all bond/create/gran 1 1 1 100 1 6         
+run 1                                                          # bond grains
+Setting up run at Fri Aug  9 16:18:21 2024
+
+Memory usage per processor = 10.6746 Mbytes
+    Step    Atoms         KinEng            CPU 
+       0        2  1.1911872e+08              0 
+       1        2  1.1911872e+08     4.1394e-05 
+Loop time of 4.3293e-05 on 1 procs for 1 steps with 2 atoms, finish time Fri Aug  9 16:18:21 2024
+
+
+Pair  time (%) = 4.50993e-07 (1.04172)
+Bond  time (%) = 1.27999e-07 (0.295657)
+Neigh time (%) = 0 (0)
+Comm  time (%) = 8.00064e-08 (0.184802)
+Outpt time (%) = 3.942e-06 (9.10539)
+Other time (%) = 3.8692e-05 (89.3724)
+
+Nlocal:    2 ave 2 max 2 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    1 ave 1 max 1 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 1
+Ave neighs/atom = 0.5
+Ave special neighs/atom = 0
+Neighbor list builds = 0
+Dangerous builds = 0
+
+fix_modify bondcr every 0 # do not create new bonds after this line
+
+# timestep checking?
+fix dtBond all check/timestep/bond 1 0.1 # Check the time step for the bond
+unfix dtBond
+
+### ----------------------------------- run & output simulation ---------------------------------- ###
+
+shell mkdir post # make directory to output data
+
+# Set dump file parameters for paraview
+dump dmp all custom ${fileprint_step} post/dump*.liggghts id type x y z vx vy vz fx fy fz omegax omegay omegaz radius
+dump dmp all custom 64 post/dump*.liggghts id type x y z vx vy vz fx fy fz omegax omegay omegaz radius
+
+# Get bond force and torque values
+dump bondforcechain all local ${fileprint_step} post/bfc*.bond     c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16]
+dump bondforcechain all local 64 post/bfc*.bond     c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16]
+
+# Get parameters of right ball to export to out.csv
+variable sim_time equal step*${dt}
+variable sim_time equal step*0.00158144593510098
+variable x equal x[2]
+variable y equal y[2]
+variable vx equal vx[2]
+
+# Configure output to out.csv
+fix outfile all print ${output_step} "${sim_time}, ${dt}, ${x}, ${y}, ${vx}" file out.csv screen no title "t, dt, x, y, vx"
+fix outfile all print 1 "${sim_time}, ${dt}, ${x}, ${y}, ${vx}" file out.csv screen no title "t, dt, x, y, vx"
+
+# Set output frequency
+thermo 100 # not sure if this is necessary
+
+# Ignore lost atoms and do not normalize output
+thermo_modify lost ignore norm no
+
+# Run
+run 2000
+Setting up run at Fri Aug  9 16:18:21 2024
+
+Memory usage per processor = 10.6746 Mbytes
+    Step    Atoms         KinEng            CPU 
+       1        2  1.1911872e+08              0 
+     100        2  1.1911872e+08    0.000624165 
+     200        2  1.1911872e+08    0.001211415 
+     300        2  1.1911872e+08    0.001699397 
+     400        2  1.1911872e+08    0.002216254 
+     500        2  1.1911872e+08    0.002642614 
+     600        2  1.1911872e+08    0.003086675 
+     700        2  1.1911872e+08    0.003460535 
+     800        2  1.1911872e+08    0.003837117 
+     900        2  1.1911872e+08    0.004184072 
+    1000        2  1.1911872e+08    0.004513454 
+    1100        2  1.1911872e+08     0.00485619 
+    1200        2  1.1911872e+08    0.005190405 
+    1300        2  1.1911872e+08     0.00554812 
+    1400        2  1.1911872e+08    0.005872381 
+    1500        2  1.1911872e+08    0.006221701 
+    1600        2  1.1911872e+08    0.006560944 
+    1700        2  1.1911872e+08    0.006896656 
+    1800        2  1.1911872e+08    0.007264952 
+    1900        2  1.1911872e+08    0.007605089 
+    2000        2  1.1911872e+08    0.007964305 
+    2001        2  1.1911872e+08    0.007980119 
+Loop time of 0.00798856 on 1 procs for 2000 steps with 2 atoms, finish time Fri Aug  9 16:18:21 2024
+
+
+Pair  time (%) = 0.000166839 (2.08848)
+Bond  time (%) = 6.23202e-05 (0.780119)
+Neigh time (%) = 4.02601e-06 (0.0503972)
+Comm  time (%) = 5.68313e-05 (0.711409)
+Outpt time (%) = 0.00106907 (13.3826)
+Other time (%) = 0.00662947 (82.987)
+
+Nlocal:    2 ave 2 max 2 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 0
+Ave neighs/atom = 0
+Ave special neighs/atom = 0
+Neighbor list builds = 3
+Dangerous builds = 0
