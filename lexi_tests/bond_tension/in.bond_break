@@ -5,7 +5,7 @@
 ### ----------------------------------- variable declaration ----------------------------------- ###
 
 # Material Properties
-variable particle_diameter       equal 100        # [m] particles diameter 
+variable particle_diameter       equal 100.1      # [m] particles diameter 
 #variable bond_out_diameter       equal 100        # [m] bond outer diameter 
 #variable bond_in_diameter        equal 0.0        # [m] bond inner diameter 
 #variable bond_length             equal 100        # [m] distance between two particles in bond
@@ -18,12 +18,12 @@ variable normal_strength         equal 1e5        # [N] bond critical normal str
 variable shear_strength          equal 1e6        # [N] bond critical shear strength
 
 # Simulation Parameters
-variable tensioning_force        equal 1.0e5   # [N] strength of tensioning force
-variable vx_left                 equal -0.5    # [m/s] applied velocity to left particle
+#variable tensioning_force        equal 1.0e5   # [N] strength of tensioning force
+variable vx_left                 equal -0.5   # [m/s] applied velocity to left particle
 variable vx_right                equal 0.5     # [m/s] applied velocity to right particle
-variable fileprint_time          equal 1.0e-1  # [s] how often we print to the file
-variable thermo_time             equal 1.0e-1  # [s] how often we print to the screen 
-variable output_time             equal 1.0e-3  # [s] how often we print to the .csv file
+variable fileprint_time          equal 5.0e-1  # [s] how often we print to the file
+variable thermo_time             equal 5.0e-1  # [s] how often we print to the screen 
+variable output_time             equal 5.0e-2  # [s] how often we print to the .csv file
 
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
@@ -47,8 +47,8 @@ variable thermo_step             equal ceil(${thermo_time}/${dt})
 
 # Preliminaries
 units si                                                                # SI units
-#dimension 2                                                             # set dimension
-atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6     # specify particle and bond style
+#dimension 2                                                            # set dimension
+atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 12    # specify particle and bond style
 hard_particles yes                                                      # need for high elastic modulus
 newton off
 processors 1 1 1                        # 1 processor per axis; if using multiple processors, use '*'
@@ -75,18 +75,17 @@ fix m3 all property/global coefficientRestitution peratomtypepair 1 0.5  # set r
 fix m4 all property/global coefficientFriction peratomtypepair 1 0.7     # set friction coefficient to atom type 1
 
 create_atoms 1 single 100.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 1 assigned by default
-create_atoms 1 single 200.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 1 assigned by default
+create_atoms 1 single 200.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 2 assigned by default
 
 set atom 1 diameter ${particle_diameter} density ${particle_density} vx ${vx_left}  # assign atom 1 initial values
 set atom 2 diameter ${particle_diameter} density ${particle_density} vx ${vx_right} # assign atom 2 initial values
+
 # Set bond coefficients for a simple bond (no holes) with properties below; see Notion for more details 
 bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
 
-# Numerics
-fix integr all nve/sphere               # set the integrator st moles, velocity, and energy are conserved
-timestep ${dt}                          # [s] timestep
+timestep ${dt}  
 
-run 0                                   # insert particles
+run 0                                                                       # insert particles
 
 ### ----------------------------------- bond grains ---------------------------------- ###
 
@@ -94,15 +93,23 @@ run 0                                   # insert particles
 compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
 
 fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # add bonds?; every itype jtype cutoff btype newperts
-run 1                                                          # bond grains
-
-fix_modify bondcr every 0 # do not create new bonds after this line
 
 # timestep checking?
 fix dtBond all check/timestep/bond 1 0.1 # Check the time step for the bond
-unfix dtBond
+
+run 1                                    # bond grains
+
+unfix dtBond  
+
+fix_modify bondcr every 0 # do not create new bonds after this line
+
 
 ### ----------------------------------- run & output simulation ---------------------------------- ###
+
+# Numerics
+fix integr all nve/sphere               # set the integrator st moles, velocity, and energy are conserved
+timestep ${dt}                          # [s] timestep
+#timestep 5.0e-4                         # [s] timestep
 
 shell mkdir post # make directory to output data
 
@@ -115,18 +122,21 @@ dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
 
 # Get parameters of right ball to export to out.csv
 variable sim_time equal step*${dt}
-variable x equal x[2]
-variable y equal y[2]
-variable vx equal vx[2]
+variable x1 equal x[1]
+variable y1 equal y[1]
+variable vx1 equal vx[1]
+variable x2 equal x[2]
+variable y2 equal y[2]
+variable vx2 equal vx[2]
 
 # Configure output to out.csv
-fix outfile all print ${output_step} "${sim_time}, ${dt}, ${x}, ${y}, ${vx}" file out.csv screen no title "t, dt, x, y, vx"
+fix outfile all print ${output_step} "${sim_time}, ${dt}, ${x1}, ${x2}, ${vx1}, ${vx2}" file out.csv screen no title "t,dt,x1,x2,vx1,vx2"
 
 # Set output frequency 
-thermo 100 # not sure if this is necessary 
+thermo 5000 # not sure if this is necessary 
 
 # Ignore lost atoms and do not normalize output
 thermo_modify lost ignore norm no
 
 # Run 
-run 2000
+run 100000
