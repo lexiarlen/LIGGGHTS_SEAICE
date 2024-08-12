@@ -1,0 +1,79 @@
+# By Cristian Escauriaza; Aug 12, 2024
+
+# Define the radius of Rankine vortex
+variable rc equal 0.3
+variable rc2 equal "v_rc * v_rc"
+variable r2 atom "x^2 + y^2"
+
+# Use the distance to define the velocity field, whether (x, y) is inside the radius
+variable urc atom "(v_r2<=v_rc2)*-2*(y/v_rc2)*sqrt(x^2 + y^2)+(v_r2>v_rc)*-2*(y/sqrt(x^2 + y^2))*(v_rc2/(x^2 + y^2))" 
+variable vrc atom "(v_r2<=v_rc2)*2*(x/v_rc2)*sqrt(x^2 + y^2)+(v_r2>v_rc2)*2*(x/sqrt(x^2 + y^2))*(v_rc2/(x^2 + y^2))"
+
+
+# Components of the drag force, Cd=constant=1.5, area=pi*d^2/4, volume=pi*d^3/6
+variable fdragx atom 0.5*1000*1.5*7.8540e-5*abs(v_urc-vx)*(v_urc-vx)
+variable fdragy atom 0.5*1000*1.5*7.8540e-5*abs(v_vrc-vy)*(v_vrc-vy)
+#variable fbuoyancy atom (5.2360e-7)*(density-1000)*9.81
+
+atom_style    sphere
+atom_modify   map array sort 0 0
+boundary      p p f
+newton        off
+
+communicate   single vel yes
+processors    4 1 1
+
+units         si
+
+read_data     data/input.data
+
+neighbor      0.02 bin
+neigh_modify  delay 0 every 5 check yes
+communicate   single vel yes
+
+#Material properties required for new pair styles
+
+fix           m1 all property/global youngsModulus peratomtype 70e6 70e6
+fix           m2 all property/global poissonsRatio peratomtype 0.08 0.08
+fix           m3 all property/global coefficientRestitution peratomtypepair 2 0.6 0.6 0.6 0.6
+fix           m4 all property/global coefficientFriction peratomtypepair 2 0.5 0.5 0.5 0.5
+
+#New pair style
+pair_style    gran model hertz tangential history #Hertzian without cohesion
+pair_coeff  * *
+
+variable dt   equal 2.5e-7
+timestep      ${dt}
+
+group         active type 1
+group         inactive subtract all active
+neigh_modify  exclude group inactive inactive
+
+#fix           gravity active gravity 9.81 vector 0 0 -1
+
+fix           push active addforce v_fdragx v_fdragy 0.0  #drag in 3D
+
+fix           integrate active nve/sphere  #integration, if passive particle, nve
+
+fix           zwalls1 all wall/gran model hertz tangential history primitive type 1 zplane -1.0
+fix           zwalls2 all wall/gran model hertz tangential history primitive type 1 zplane 1.0
+
+#output settings, include total thermal energy
+compute       1 all erotate/sphere
+thermo_style  custom step atoms c_1 vol
+thermo        1000
+thermo_modify lost error flush yes
+
+#insert the first particles so that dump is not empty
+run    1
+#dump   dmp all custom/vtk 1000 post/case1_*.vtk id type density x y z ix iy iz vx vy vz fx fy fz omegax omegay omegaz radius 
+
+shell mkdir post
+dump dmp all custom 1000 post/dump*.liggghts id type density x y z ix iy iz vx vy vz fx fy fz omegax omegay omegaz radius
+
+
+#Run simulation
+run    1000000 upto
+
+
+ 
