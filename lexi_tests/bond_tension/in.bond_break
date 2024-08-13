@@ -5,7 +5,7 @@
 ### ----------------------------------- variable declaration ----------------------------------- ###
 
 # Material Properties
-variable particle_diameter       equal 100.1      # [m] particles diameter 
+variable particle_diameter       equal 100.05      # [m] particles diameter 
 #variable bond_out_diameter       equal 100        # [m] bond outer diameter 
 #variable bond_in_diameter        equal 0.0        # [m] bond inner diameter 
 #variable bond_length             equal 100        # [m] distance between two particles in bond
@@ -18,12 +18,13 @@ variable normal_strength         equal 1e5        # [N] bond critical normal str
 variable shear_strength          equal 1e6        # [N] bond critical shear strength
 
 # Simulation Parameters
-#variable tensioning_force        equal 1.0e5   # [N] strength of tensioning force
-variable vx_left                 equal -0.5   # [m/s] applied velocity to left particle
-variable vx_right                equal 0.5     # [m/s] applied velocity to right particle
-variable fileprint_time          equal 5.0e-1  # [s] how often we print to the file
+variable fx_left                 equal -1.0e8   # [N] strength of tensioning force
+variable fx_right                equal 1.0e8   # [N] strength of tensioning force
+#variable vx_left                 equal -0.5    # [m/s] applied velocity to left particle
+#variable vx_right                equal 0.5     # [m/s] applied velocity to right particle
+variable fileprint_time          equal 8.0e-1  # [s] how often we print to the file
 variable thermo_time             equal 5.0e-1  # [s] how often we print to the screen 
-variable output_time             equal 5.0e-2  # [s] how often we print to the .csv file
+variable output_time             equal 1.0e-1  # [s] how often we print to the .csv file
 
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
@@ -77,13 +78,16 @@ fix m4 all property/global coefficientFriction peratomtypepair 1 0.7     # set f
 create_atoms 1 single 100.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 1 assigned by default
 create_atoms 1 single 200.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 2 assigned by default
 
-set atom 1 diameter ${particle_diameter} density ${particle_density} vx ${vx_left}  # assign atom 1 initial values
-set atom 2 diameter ${particle_diameter} density ${particle_density} vx ${vx_right} # assign atom 2 initial values
+set atom 1 diameter ${particle_diameter} density ${particle_density} #vx ${vx_left}  # assign atom 1 initial values
+set atom 2 diameter ${particle_diameter} density ${particle_density} #vx ${vx_right} # assign atom 2 initial values
+
+group left_atom  id 1                                                # create a group for the left atom to specify force
+group right_atom id 2                                                # create a group for the left atom to specify force
 
 # Set bond coefficients for a simple bond (no holes) with properties below; see Notion for more details 
 bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
 
-timestep ${dt}  
+timestep ${dt} 
 
 run 0                                                                       # insert particles
 
@@ -94,22 +98,21 @@ compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z ba
 
 fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # add bonds?; every itype jtype cutoff btype newperts
 
-# timestep checking?
-fix dtBond all check/timestep/bond 1 0.1 # Check the time step for the bond
+fix dtBond all check/timestep/bond 1 0.1                       # check the time step for the bond
 
-run 1                                    # bond grains
+run 1                                                          # bond grains
 
-unfix dtBond  
+unfix dtBond                                                   # get rid of bond timestep?
 
-fix_modify bondcr every 0 # do not create new bonds after this line
+fix_modify bondcr every 0                                      # do not create new bonds after this line
 
+fix left_force  left_atom  addforce ${fx_left}  0.0  0.0     # apply force; syntax: fix <fix name> <group id> addforce <fx> <fy> <fz>
+fix right_force right_atom addforce ${fx_right} 0.0  0.0     # apply force; syntax: fix <fix name> <group id> addforce <fx> <fy> <fz>
 
 ### ----------------------------------- run & output simulation ---------------------------------- ###
 
 # Numerics
-fix integr all nve/sphere               # set the integrator st moles, velocity, and energy are conserved
-timestep ${dt}                          # [s] timestep
-#timestep 5.0e-4                         # [s] timestep
+fix integrate all nve/sphere             # set the integrator such that moles, velocity, and energy are conserved 
 
 shell mkdir post # make directory to output data
 
@@ -139,4 +142,4 @@ thermo 5000 # not sure if this is necessary
 thermo_modify lost ignore norm no
 
 # Run 
-run 100000
+run 50000
