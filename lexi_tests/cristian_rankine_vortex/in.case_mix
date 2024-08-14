@@ -13,11 +13,12 @@ variable vrc atom "(v_r2<=v_rc2)*2*(x/v_rc2)*sqrt(x^2 + y^2)+(v_r2>v_rc2)*2*(x/s
 # Components of the drag force, Cd=constant=1.5, area=pi*d^2/4, volume=pi*d^3/6
 variable fdragx atom 0.5*1000*1.5*7.8540e-5*abs(v_urc-vx)*(v_urc-vx)
 variable fdragy atom 0.5*1000*1.5*7.8540e-5*abs(v_vrc-vy)*(v_vrc-vy)
+variable fdragz atom -0.5*1000*1.5*7.8540e-5*abs(vz)*(vz)
 #variable fbuoyancy atom (5.2360e-7)*(density-1000)*9.81
 
 atom_style    sphere
 atom_modify   map array sort 0 0
-boundary      p p f
+boundary      p p p
 newton        off
 
 communicate   single vel yes
@@ -40,7 +41,7 @@ fix           m4 all property/global coefficientFriction peratomtypepair 2 0.5 0
 
 #New pair style
 pair_style    gran model hertz tangential history #Hertzian without cohesion
-pair_coeff  * *
+pair_coeff    * *
 
 variable dt   equal 2.5e-7
 timestep      ${dt}
@@ -49,10 +50,10 @@ group         active type 1
 group         inactive subtract all active
 neigh_modify  exclude group inactive inactive
 
-#fix           gravity active gravity 9.81 vector 0 0 -1
+#fix           gravi active gravity 9.81 vector 0 0 -1
 
-fix           push active addforce v_fdragx v_fdragy 0.0  #drag in 3D
-
+fix           push active addforce v_fdragx v_fdragy v_fdragz  #drag in 3D
+#fix           buoyancy active addforce 0.0 0.0 v_fbuoyancy
 fix           integrate active nve/sphere  #integration, if passive particle, nve
 
 fix           zwalls1 all wall/gran model hertz tangential history primitive type 1 zplane -1.0
