@@ -37,7 +37,7 @@ variable r3                      equal ${r2}*${particle_radius}
 variable K                       equal ${elastic_modulus}*PI*${r2}/${particle_diameter}
 variable m                       equal 4.0*PI*${r3}*${particle_density}/3.0
 variable w                       equal sqrt($K/$m)
-variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)*10#/100 # no clue where this comes from
+variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)#/100 # no clue where this comes from
 
 # Simulation Derived Parameters
 variable fileprint_step          equal ceil(${fileprint_time}/${dt})
@@ -144,4 +144,4 @@ thermo 5000 # not sure if this is necessary
 thermo_modify lost ignore norm no
 
 # Run 
-run 10000
+run 100000
