@@ -37,7 +37,7 @@ variable r3                      equal ${r2}*${particle_radius}
 variable K                       equal ${elastic_modulus}*PI*${r2}/${particle_diameter}
 variable m                       equal 4.0*PI*${r3}*${particle_density}/3.0
 variable w                       equal sqrt($K/$m)
-variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w) # no clue where this comes from
+variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)*10#/100 # no clue where this comes from
 
 # Simulation Derived Parameters
 variable fileprint_step          equal ceil(${fileprint_time}/${dt})
@@ -114,6 +114,7 @@ fix right_force right_atom addforce ${fx_right} 0.0  0.0     # apply force; synt
 # Numerics
 fix integrate all nve/sphere             # set the integrator such that moles, velocity, and energy are conserved 
 
+shell rm -rf post # remove old output directory; havent tested if this works
 shell mkdir post # make directory to output data
 
 # Set dump file parameters for paraview
@@ -124,16 +125,17 @@ dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
     c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16]
 
 # Get parameters of right ball to export to out.csv
-variable sim_time equal step*${dt}
-variable x1 equal x[1]
-variable y1 equal y[1]
-variable vx1 equal vx[1]
-variable x2 equal x[2]
-variable y2 equal y[2]
-variable vx2 equal vx[2]
+# variable sim_time equal step*${dt}
+# variable x1       equal x[1]
+# variable y1       equal y[1]
+# variable vx1      equal vx[1]
+# variable x2       equal x[2]
+# variable y2       equal y[2]
+# variable vx2      equal vx[2]
+
 
 # Configure output to out.csv
-fix outfile all print ${output_step} "${sim_time}, ${dt}, ${x1}, ${x2}, ${vx1}, ${vx2}" file out.csv screen no title "t,dt,x1,x2,vx1,vx2"
+#fix outfile all print ${output_step} "${sim_time}, ${dt}, ${x1}, ${x2}, ${vx1}, ${vx2}" file out.csv screen no title "t,dt,x1,x2,vx1,vx2"
 
 # Set output frequency 
 thermo 5000 # not sure if this is necessary 
@@ -142,4 +144,4 @@ thermo 5000 # not sure if this is necessary
 thermo_modify lost ignore norm no
 
 # Run 
-run 50000
+run 10000
