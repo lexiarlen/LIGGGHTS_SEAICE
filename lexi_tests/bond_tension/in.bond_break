@@ -40,8 +40,8 @@ variable w                       equal sqrt($K/$m)
 variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)#/100 # no clue where this comes from
 
 # Simulation Derived Parameters
-variable fileprint_step          equal ceil(${fileprint_time}/${dt})
-variable output_step             equal ceil(${output_time}/${dt})
+variable fileprint_step          equal 10*ceil(${fileprint_time}/${dt})
+variable output_step             equal 10*ceil(${output_time}/${dt})
 variable thermo_step             equal ceil(${thermo_time}/${dt})
 
 ### ----------------------------------- build simulation ----------------------------------- ###
@@ -93,8 +93,10 @@ run 0                                                                       # in
 
 ### ----------------------------------- bond grains ---------------------------------- ###
 
-# compute forces, torques, and eq dist from the bonds
-compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
+# compute particle locations, forces, torques, and eq dist from the bonds 
+# note that we put btype twice so that output is compatible with the richti paraview 5.8.1 reader
+# the property for this location is molecule type, but this doens't exist for granular simulations
+compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
 
 fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # add bonds?; every itype jtype cutoff btype newperts
 
@@ -114,24 +116,25 @@ fix right_force right_atom addforce ${fx_right} 0.0  0.0     # apply force; synt
 # Numerics
 fix integrate all nve/sphere             # set the integrator such that moles, velocity, and energy are conserved 
 
-shell rm -rf post # remove old output directory; havent tested if this works
+#shell rm -rf post # remove old output directory; havent tested if this works
 shell mkdir post # make directory to output data
 
-# Set dump file parameters for paraview
-dump dmp all custom ${fileprint_step} post/dump*.liggghts id type x y z vx vy vz fx fy fz omegax omegay omegaz radius
+# Set dump file parameters for paraview; extra 4 ids are dummy variables to make output work with richti paraview 5.8.1 reader
+# I think the last variables won't do what they're supposed to as these are PF, PF, PF, SC in the reader
+dump dmp all custom ${fileprint_step} post/dump*.liggghts id type x y z id id id id vx vy vz fx fy fz omegax omegay omegaz radius
 
 # Get bond force and torque values
 dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
-    c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16]
+    c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16] c_bc[17]
 
 # Get parameters of right ball to export to out.csv
-# variable sim_time equal step*${dt}
-# variable x1       equal x[1]
-# variable y1       equal y[1]
-# variable vx1      equal vx[1]
-# variable x2       equal x[2]
-# variable y2       equal y[2]
-# variable vx2      equal vx[2]
+variable sim_time equal step*${dt}
+variable x1       equal x[1]
+variable y1       equal y[1]
+variable vx1      equal vx[1]
+variable x2       equal x[2]
+variable y2       equal y[2]
+variable vx2      equal vx[2]
 
 
 # Configure output to out.csv
@@ -144,4 +147,4 @@ thermo 5000 # not sure if this is necessary
 thermo_modify lost ignore norm no
 
 # Run 
-run 100000
+run 1000000
