@@ -10,7 +10,7 @@ variable particle_diameter       equal 100.05      # [m] particles diameter
 #variable bond_in_diameter        equal 0.0        # [m] bond inner diameter 
 #variable bond_length             equal 100        # [m] distance between two particles in bond
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
-variable bond_damp_val           equal 50.0       # [-] from cantilever beam; shear uses 0.05; make higher..?
+variable bond_damp_val           equal 5.0        # [-] from cantilever beam; shear uses 0.05; make higher..?
 variable particle_density        equal 910.0      # [kg/m3] 3D density
 variable elastic_modulus         equal 1.0e8      # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
@@ -35,9 +35,9 @@ variable bond_skin               equal 1.0*${particle_diameter}
 variable r2                      equal ${particle_radius}*${particle_radius}
 variable r3                      equal ${r2}*${particle_radius}
 variable K                       equal ${elastic_modulus}*PI*${r2}/${particle_diameter}
-variable m                       equal 4.0*PI*${r3}*${particle_density}/3.0
+variable m                       equal 4.0*PI*${r3}*${particle_density}/3.0 # this is the particle mass; change for 2D simulations
 variable w                       equal sqrt($K/$m)
-variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)#/100 # no clue where this comes from
+variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)#/100 # no clue where this comes from - Yu Guo?
 
 # Simulation Derived Parameters
 variable fileprint_step          equal 10*ceil(${fileprint_time}/${dt})
@@ -50,7 +50,7 @@ variable thermo_step             equal ceil(${thermo_time}/${dt})
 units si                                                                # SI units
 #dimension 2                                                            # set dimension
 atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 12    # specify particle and bond style
-hard_particles yes                                                      # need for high elastic modulus
+hard_particles yes                                                      # need for high elastic modulus (> 1e5)
 newton off
 processors 1 1 1                        # 1 processor per axis; if using multiple processors, use '*'
 communicate single vel yes              # ghost particles are given position and velocity information
@@ -96,6 +96,7 @@ run 0                                                                       # in
 # compute particle locations, forces, torques, and eq dist from the bonds 
 # note that we put btype twice so that output is compatible with the richti paraview 5.8.1 reader
 # the property for this location is molecule type, but this doens't exist for granular simulations
+# i am hoping that adding the extra btype doesn't mess up the bond computation...? it shouldn't
 compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
 
 fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # add bonds?; every itype jtype cutoff btype newperts
