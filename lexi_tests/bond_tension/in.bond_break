@@ -5,12 +5,12 @@
 ### ----------------------------------- variable declaration ----------------------------------- ###
 
 # Material Properties
-variable particle_diameter       equal 100.05      # [m] particles diameter 
+variable particle_diameter       equal 100.01       # [m] particles diameter 
 #variable bond_out_diameter       equal 100        # [m] bond outer diameter 
 #variable bond_in_diameter        equal 0.0        # [m] bond inner diameter 
 #variable bond_length             equal 100        # [m] distance between two particles in bond
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
-variable bond_damp_val           equal 5.0        # [-] from cantilever beam; shear uses 0.05; make higher..?
+variable bond_damp_val           equal 0.5        # [-] from cantilever beam; shear uses 0.05; make higher..?
 variable particle_density        equal 910.0      # [kg/m3] 3D density
 variable elastic_modulus         equal 1.0e8      # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
@@ -29,7 +29,7 @@ variable output_time             equal 1.0e-1  # [s] how often we print to the .
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
 variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
-variable bond_skin               equal 1.0*${particle_diameter}
+variable bond_skin               equal 1.0*${particle_diameter} 
 
 # Calculate dt using the bond model
 variable r2                      equal ${particle_radius}*${particle_radius}
@@ -49,7 +49,7 @@ variable thermo_step             equal ceil(${thermo_time}/${dt})
 # Preliminaries
 units si                                                                # SI units
 #dimension 2                                                            # set dimension
-atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 12    # specify particle and bond style
+atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6     # specify particle and bond style
 hard_particles yes                                                      # need for high elastic modulus (> 1e5)
 newton off
 processors 1 1 1                        # 1 processor per axis; if using multiple processors, use '*'
@@ -105,7 +105,7 @@ fix dtBond all check/timestep/bond 1 0.1                       # check the time 
 
 run 1                                                          # bond grains
 
-unfix dtBond                                                   # get rid of bond timestep?
+unfix dtBond                                                   # stop checking bond timestep (not doing anymore bonding)
 
 fix_modify bondcr every 0                                      # do not create new bonds after this line
 
@@ -129,13 +129,13 @@ dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
     c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16] c_bc[17]
 
 # Get parameters of right ball to export to out.csv
-variable sim_time equal step*${dt}
-variable x1       equal x[1]
-variable y1       equal y[1]
-variable vx1      equal vx[1]
-variable x2       equal x[2]
-variable y2       equal y[2]
-variable vx2      equal vx[2]
+# variable sim_time equal step*${dt}
+# variable x1       equal x[1]
+# variable y1       equal y[1]
+# variable vx1      equal vx[1]
+# variable x2       equal x[2]
+# variable y2       equal y[2]
+# variable vx2      equal vx[2]
 
 
 # Configure output to out.csv
