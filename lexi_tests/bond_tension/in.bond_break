@@ -18,13 +18,12 @@ variable normal_strength         equal 1e5        # [N] bond critical normal str
 variable shear_strength          equal 1e6        # [N] bond critical shear strength
 
 # Simulation Parameters
-variable fx_left                 equal -1.0e8   # [N] strength of tensioning force
-variable fx_right                equal 1.0e8   # [N] strength of tensioning force
+variable fx_left                 equal -1.0e4   # [N] strength of tensioning force
+variable fx_right                equal 1.0e4    # [N] strength of tensioning force
 #variable vx_left                 equal -0.5    # [m/s] applied velocity to left particle
 #variable vx_right                equal 0.5     # [m/s] applied velocity to right particle
-variable fileprint_time          equal 8.0e-1  # [s] how often we print to the file
-variable thermo_time             equal 5.0e-1  # [s] how often we print to the screen 
-variable output_time             equal 1.0e-1  # [s] how often we print to the .csv file
+variable fileprint_time          equal 10.0    # [s] how often we print to the file
+#variable output_time             equal 1.0e-1  # [s] how often we print to the .csv file
 
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
@@ -41,8 +40,7 @@ variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)#/
 
 # Simulation Derived Parameters
 variable fileprint_step          equal 10*ceil(${fileprint_time}/${dt})
-variable output_step             equal 10*ceil(${output_time}/${dt})
-variable thermo_step             equal ceil(${thermo_time}/${dt})
+#variable output_step             equal 10*ceil(${output_time}/${dt})
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
@@ -117,8 +115,7 @@ fix right_force right_atom addforce ${fx_right} 0.0  0.0     # apply force; synt
 # Numerics
 fix integrate all nve/sphere             # set the integrator such that moles, velocity, and energy are conserved 
 
-#shell rm -rf post # remove old output directory; havent tested if this works
-shell mkdir post # make directory to output data
+shell mkdir post                         # make directory to output data
 
 # Set dump file parameters for paraview; extra 4 ids are dummy variables to make output work with richti paraview 5.8.1 reader
 # I think the last variables won't do what they're supposed to as these are PF, PF, PF, SC in the reader
