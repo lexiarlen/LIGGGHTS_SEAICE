@@ -5,25 +5,19 @@
 ### ----------------------------------- variable declaration ----------------------------------- ###
 
 # Material Properties
-variable particle_diameter       equal 100.01       # [m] particles diameter 
-#variable bond_out_diameter       equal 100        # [m] bond outer diameter 
-#variable bond_in_diameter        equal 0.0        # [m] bond inner diameter 
-#variable bond_length             equal 100        # [m] distance between two particles in bond
+variable particle_diameter       equal 100.01      # [m] particles diameter 
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
-variable bond_damp_val           equal 0.5        # [-] from cantilever beam; shear uses 0.05; make higher..?
+variable bond_damp_val           equal 5.0        # [-] from cantilever beam; shear uses 0.05; make higher..?
 variable particle_density        equal 910.0      # [kg/m3] 3D density
 variable elastic_modulus         equal 1.0e8      # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
-variable normal_strength         equal 1e5        # [N] bond critical normal strength
-variable shear_strength          equal 1e6        # [N] bond critical shear strength
+variable normal_strength         equal 1e5        # [Pa] bond critical normal strength
+variable shear_strength          equal 1e6        # [Pa] bond critical shear strength
 
 # Simulation Parameters
 variable fx_left                 equal -1.0e4   # [N] strength of tensioning force
 variable fx_right                equal 1.0e4    # [N] strength of tensioning force
-#variable vx_left                 equal -0.5    # [m/s] applied velocity to left particle
-#variable vx_right                equal 0.5     # [m/s] applied velocity to right particle
-variable fileprint_time          equal 10.0    # [s] how often we print to the file
-#variable output_time             equal 1.0e-1  # [s] how often we print to the .csv file
+variable fileprint_time          equal 100.0    # [s] how often we print to the file
 
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
@@ -39,14 +33,12 @@ variable w                       equal sqrt($K/$m)
 variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)#/100 # no clue where this comes from - Yu Guo?
 
 # Simulation Derived Parameters
-variable fileprint_step          equal 10*ceil(${fileprint_time}/${dt})
-#variable output_step             equal 10*ceil(${output_time}/${dt})
+variable fileprint_step          equal ceil(${fileprint_time}/${dt})
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
 # Preliminaries
 units si                                                                # SI units
-#dimension 2                                                            # set dimension
 atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6     # specify particle and bond style
 hard_particles yes                                                      # need for high elastic modulus (> 1e5)
 newton off
@@ -70,14 +62,14 @@ bond_style gran                                  # linear parallel bond
 # Specify and create atoms
 fix m1 all property/global youngsModulus peratomtype ${elastic_modulus}  # set the elastic modulus
 fix m2 all property/global poissonsRatio peratomtype ${poissons_ratio}   # set Poisson's ratio
-fix m3 all property/global coefficientRestitution peratomtypepair 1 0.5  # set restituion coefficient to atom type 1
+fix m3 all property/global coefficientRestitution peratomtypepair 1 0.2  # set restituion coefficient to atom type 1
 fix m4 all property/global coefficientFriction peratomtypepair 1 0.7     # set friction coefficient to atom type 1
 
 create_atoms 1 single 100.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 1 assigned by default
 create_atoms 1 single 200.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 2 assigned by default
 
-set atom 1 diameter ${particle_diameter} density ${particle_density} #vx ${vx_left}  # assign atom 1 initial values
-set atom 2 diameter ${particle_diameter} density ${particle_density} #vx ${vx_right} # assign atom 2 initial values
+set atom 1 diameter ${particle_diameter} density ${particle_density}  # assign atom 1 initial values
+set atom 2 diameter ${particle_diameter} density ${particle_density}  # assign atom 2 initial values
 
 group left_atom  id 1                                                # create a group for the left atom to specify force
 group right_atom id 2                                                # create a group for the left atom to specify force
@@ -92,12 +84,9 @@ run 0                                                                       # in
 ### ----------------------------------- bond grains ---------------------------------- ###
 
 # compute particle locations, forces, torques, and eq dist from the bonds 
-# note that we put btype twice so that output is compatible with the richti paraview 5.8.1 reader
-# the property for this location is molecule type, but this doens't exist for granular simulations
-# i am hoping that adding the extra btype doesn't mess up the bond computation...? it shouldn't
-compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
+compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
 
-fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # add bonds?; every itype jtype cutoff btype newperts
+fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # add bonds?; every itype jtype cutoff?? bondskin btype newperts
 
 fix dtBond all check/timestep/bond 1 0.1                       # check the time step for the bond
 
@@ -107,42 +96,26 @@ unfix dtBond                                                   # stop checking b
 
 fix_modify bondcr every 0                                      # do not create new bonds after this line
 
-fix left_force  left_atom  addforce ${fx_left}  0.0  0.0     # apply force; syntax: fix <fix name> <group id> addforce <fx> <fy> <fz>
-fix right_force right_atom addforce ${fx_right} 0.0  0.0     # apply force; syntax: fix <fix name> <group id> addforce <fx> <fy> <fz>
+fix left_force  left_atom  addforce ${fx_left}  0.0  0.0       # apply force; fix <fix name> <group id> addforce <fx> <fy> <fz>
+fix right_force right_atom addforce ${fx_right} 0.0  0.0       # apply force; fix <fix name> <group id> addforce <fx> <fy> <fz>
 
 ### ----------------------------------- run & output simulation ---------------------------------- ###
 
 # Numerics
-fix integrate all nve/sphere             # set the integrator such that moles, velocity, and energy are conserved 
+fix integrate all nve/sphere                            # set the integrator such that moles, velocity, and energy are conserved 
 
-shell mkdir post                         # make directory to output data
+shell rmdir -rf post                                    # remove previous directory if it exixts
+shell mkdir post                                        # make directory to output data
 
-# Set dump file parameters for paraview; extra 4 ids are dummy variables to make output work with richti paraview 5.8.1 reader
-# I think the last variables won't do what they're supposed to as these are PF, PF, PF, SC in the reader
 dump dmp all custom ${fileprint_step} post/dump*.liggghts id type x y z id id id id vx vy vz fx fy fz omegax omegay omegaz radius
+dump_modify dmp pad 10                                  # pad the timesteps with zeros
 
-# Get bond force and torque values
 dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
-    c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16] c_bc[17]
+    c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16]
 
-# Get parameters of right ball to export to out.csv
-# variable sim_time equal step*${dt}
-# variable x1       equal x[1]
-# variable y1       equal y[1]
-# variable vx1      equal vx[1]
-# variable x2       equal x[2]
-# variable y2       equal y[2]
-# variable vx2      equal vx[2]
+dump_modify bondforcechain pad 10                       # pad the timesteps with zeros
 
+thermo 50000                                            # set output frequency for output for screen
+thermo_modify lost ignore norm no                       # ignore lost atoms and do not normalize output
 
-# Configure output to out.csv
-#fix outfile all print ${output_step} "${sim_time}, ${dt}, ${x1}, ${x2}, ${vx1}, ${vx2}" file out.csv screen no title "t,dt,x1,x2,vx1,vx2"
-
-# Set output frequency 
-thermo 5000 # not sure if this is necessary 
-
-# Ignore lost atoms and do not normalize output
-thermo_modify lost ignore norm no
-
-# Run 
-run 1000000
+run 1000000                                             # run
