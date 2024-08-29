@@ -5,7 +5,7 @@
 ### ----------------------------------- variable declaration ----------------------------------- ###
 
 # Material Properties
-variable particle_diameter       equal 100.01      # [m] particles diameter 
+variable particle_diameter       equal 100.0      # [m] particles diameter 
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
 variable bond_damp_val           equal 5.0        # [-] from cantilever beam; shear uses 0.05; make higher..?
 variable particle_density        equal 910.0      # [kg/m3] 3D density
@@ -22,7 +22,7 @@ variable fileprint_time          equal 100.0    # [s] how often we print to the 
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
 variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
-variable bond_skin               equal 1.0*${particle_diameter} 
+variable bond_skin               equal 1.001*${particle_diameter} # can't be too large
 
 # Calculate dt using the bond model
 variable r2                      equal ${particle_radius}*${particle_radius}
@@ -41,23 +41,24 @@ variable fileprint_step          equal ceil(${fileprint_time}/${dt})
 units si                                                                # SI units
 atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6     # specify particle and bond style
 hard_particles yes                                                      # need for high elastic modulus (> 1e5)
-newton off
+newton off                                                              # don't use Newton's 3rd law
+
 processors 1 1 1                        # 1 processor per axis; if using multiple processors, use '*'
 communicate single vel yes              # ghost particles are given position and velocity information
-neighbor 1.0 bin                        # skin distance to specify bin size for neighbor list generation
-neigh_modify delay 0                    # don't delay the generation of neighbor lists                                                              # don't use Newton's 3rd law
+neighbor 5.0 bin                        # skin distance to specify bin size for neighbor list generation
+neigh_modify delay 0                    # don't delay the generation of neighbor lists                                                              
 
 # Domain
-boundary f f f                                                     # fixed boundary conditions in x y z
-region domain block 0.0 300.0 0.0 200.0 0.0 200.0 units box        # (min X, max X, min Y, max Y, min Z, max Z)
-create_box 1 domain                                                # create box with domain above and 1 particle type
+boundary f f f                                                           # fixed boundary conditions in x y z
+region domain block 0.0 300.0 0.0 200.0 0.0 200.0 units box              # (min X, max X, min Y, max Y, min Z, max Z)
+create_box 1 domain                                                      # create box with domain above and 1 particle type
 
 # Contact style
-pair_style gran model hertz tangential history   # Hertz-Mindlin
-pair_coeff * *                                   # Contact coeffs from material properties not force field
+pair_style gran model hertz tangential history                           # Hertz-Mindlin
+pair_coeff * *                                                           # contact coeffs from material props not force field
 
 # Bond style
-bond_style gran                                  # linear parallel bond
+bond_style gran                                                          # linear parallel bond
 
 # Specify and create atoms
 fix m1 all property/global youngsModulus peratomtype ${elastic_modulus}  # set the elastic modulus
@@ -65,28 +66,27 @@ fix m2 all property/global poissonsRatio peratomtype ${poissons_ratio}   # set P
 fix m3 all property/global coefficientRestitution peratomtypepair 1 0.2  # set restituion coefficient to atom type 1
 fix m4 all property/global coefficientFriction peratomtypepair 1 0.7     # set friction coefficient to atom type 1
 
-create_atoms 1 single 100.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 1 assigned by default
-create_atoms 1 single 200.0 100.0 100.0 units box      # create one atom of type 1 at x y z; id 2 assigned by default
+create_atoms 1 single 100.0 100.0 100.0 units box                        # create one atom of type 1 at x y z; id 1 assigned
+create_atoms 1 single 200.0 100.0 100.0 units box                        # create one atom of type 1 at x y z; id 2 assigned
 
-set atom 1 diameter ${particle_diameter} density ${particle_density}  # assign atom 1 initial values
-set atom 2 diameter ${particle_diameter} density ${particle_density}  # assign atom 2 initial values
+set atom 1 diameter ${particle_diameter} density ${particle_density}     # assign atom 1 initial values
+set atom 2 diameter ${particle_diameter} density ${particle_density}     # assign atom 2 initial values
 
-group left_atom  id 1                                                # create a group for the left atom to specify force
-group right_atom id 2                                                # create a group for the left atom to specify force
+group left_atom  id 1                                                    # create a group for the left atom to specify force
+group right_atom id 2                                                    # create a group for the left atom to specify force
 
 # Set bond coefficients for a simple bond (no holes) with properties below; see Notion for more details 
 bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
 
 timestep ${dt} 
 
-run 0                                                                       # insert particles
+run 0                                                                    # insert particles
 
 ### ----------------------------------- bond grains ---------------------------------- ###
-
-# compute particle locations, forces, torques, and eq dist from the bonds 
+ 
 compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
 
-fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # add bonds?; every itype jtype cutoff?? bondskin btype newperts
+fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # every itype jtype cutoff?? bondskin btype newperts
 
 fix dtBond all check/timestep/bond 1 0.1                       # check the time step for the bond
 
@@ -101,13 +101,11 @@ fix right_force right_atom addforce ${fx_right} 0.0  0.0       # apply force; fi
 
 ### ----------------------------------- run & output simulation ---------------------------------- ###
 
-# Numerics
 fix integrate all nve/sphere                            # set the integrator such that moles, velocity, and energy are conserved 
 
-shell rmdir -rf post                                    # remove previous directory if it exixts
 shell mkdir post                                        # make directory to output data
 
-dump dmp all custom ${fileprint_step} post/dump*.liggghts id type x y z id id id id vx vy vz fx fy fz omegax omegay omegaz radius
+dump dmp all custom ${fileprint_step} post/dump*.liggghts id type x y z vx vy vz fx fy fz omegax omegay omegaz radius
 dump_modify dmp pad 10                                  # pad the timesteps with zeros
 
 dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
@@ -116,6 +114,7 @@ dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
 dump_modify bondforcechain pad 10                       # pad the timesteps with zeros
 
 thermo 50000                                            # set output frequency for output for screen
+thermo_style custom step atoms numbonds cpu cpuremain   # custom pringting to screen
 thermo_modify lost ignore norm no                       # ignore lost atoms and do not normalize output
 
 run 1000000                                             # run
