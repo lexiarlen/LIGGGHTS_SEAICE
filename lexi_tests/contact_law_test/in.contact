@@ -38,7 +38,7 @@ variable dt_nobond               equal 0.001
 
 # Simulation Derived Parameters
 variable left_particle_xpos      equal 350+${particle_diameter}
-variable right_particle_xpos     equal ${left_particle_xpos}+${percent_overlap}*${particle_diameter}
+variable right_particle_xpos     equal ${left_particle_xpos}+${particle_diameter}*(1-${percent_overlap})
 variable fileprint_step          equal ceil(${fileprint_time}/${dt})
 
 ### ----------------------------------- build simulation ----------------------------------- ###
