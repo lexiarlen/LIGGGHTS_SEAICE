@@ -21,7 +21,7 @@ variable shear_strength          equal 1.0e6      # [Pa] bond critical shear str
 # Simulation Parameters
 variable percent_overlap         equal 0.05    # percent of particle diameter that is overlapping
 variable simulation_time         equal 5      # [s]
-variable fileprint_time          equal 0.01    # [s] how often we print to the file
+variable max_print_steps         equal 500   # [-] how often we print to the file
 
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
@@ -39,8 +39,8 @@ variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w) #
 # Simulation Derived Parameters
 variable left_particle_xpos      equal 350+${particle_diameter}
 variable right_particle_xpos     equal ${left_particle_xpos}+${particle_diameter}*(1-${percent_overlap})
-variable fileprint_step          equal ceil(${fileprint_time}/${dt})
 variable simulation_num_steps    equal ceil(${simulation_time}/${dt})
+variable fileprint_step          equal ceil(${simulation_num_steps}/${max_print_steps}) 
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
