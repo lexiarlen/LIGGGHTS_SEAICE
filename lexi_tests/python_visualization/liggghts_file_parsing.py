@@ -10,7 +10,6 @@ def get_dt(log_file_path):
     with open(log_file_path, 'r') as file:
         lines = file.readlines()
         dt = None
-
         for i, line in enumerate(lines):
             if (line.strip().startswith('Step    Atoms numbonds             Dt')): 
                 # Extract Dt from the first step line after 'Memory used'
@@ -50,6 +49,13 @@ def create_bond_df(directory):
             timestep = int(lines[1].strip())
             timesteps.append(timestep)
 
+            # Check if the last line starts with 'ITEM:'
+            if lines[-1].strip().startswith('ITEM:'):
+                for var in bond_variable_names:
+                    data_dict[var].append(np.nan)
+                data_dict['b_fmag'].append(np.nan)
+                continue
+
             # Extract the data line; data is on the last line
             data_line = lines[-1]
             vals = list(map(float, data_line.split()))
@@ -76,7 +82,7 @@ def create_atom_df(directory):
     atom_data = {}
     timesteps = []
 
-    fpaths = sorted(glob.glob(directory + r'\*.liggghts'))
+    fpaths = sorted(glob.glob(directory + r'\d*.liggghts'))
 
     # Loop over all dump files in the simulation directory
     for fname in fpaths:
