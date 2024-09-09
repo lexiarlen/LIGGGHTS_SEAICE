@@ -48,7 +48,7 @@ newton off                                                              # don't 
 processors 1 1 1                        # 1 processor per axis; if using multiple processors, use '*'
 communicate single vel yes              # ghost particles are given position and velocity information
 neighbor 1.0 bin                        # skin distance to specify bin size for neighbor list generation
-neigh_modify delay 0.0                    # don't delay the generation of neighbor lists                                                              
+neigh_modify delay 0                    # don't delay the generation of neighbor lists                                                              
 
 # Domain
 boundary f f f                                                           # fixed boundary conditions in x y z
