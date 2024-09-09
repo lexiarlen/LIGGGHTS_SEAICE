@@ -32,7 +32,7 @@ variable r3                      equal ${r2}*${particle_radius}
 variable K                       equal ${elastic_modulus}*PI*${r2}/${particle_diameter}
 variable m                       equal 4.0*PI*${r3}*${particle_density}/3.0 # this is the particle mass; change for 2D simulations
 variable w                       equal sqrt($K/$m)
-variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)/100 # no clue where this comes from - Yu Guo?
+variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)/50 # no clue where this comes from - Yu Guo?
 
 # Simulation Derived Parameters
 variable fileprint_step          equal ceil(${fileprint_time}/${dt})
@@ -48,7 +48,7 @@ newton off                                                              # don't 
 processors 1 1 1                        # 1 processor per axis; if using multiple processors, use '*'
 communicate single vel yes              # ghost particles are given position and velocity information
 neighbor 1.0 bin                        # skin distance to specify bin size for neighbor list generation
-neigh_modify delay 0                    # don't delay the generation of neighbor lists                                                              
+neigh_modify delay 0.0                    # don't delay the generation of neighbor lists                                                              
 
 # Domain
 boundary f f f                                                           # fixed boundary conditions in x y z
@@ -86,7 +86,7 @@ run 0                                                                    # inser
 
 ### ----------------------------------- bond grains ---------------------------------- ###
  
-compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
+compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 bbondbroken bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
 
 fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # nevery itype jtype cutoff?? bondskin btype newperts
 
@@ -117,7 +117,7 @@ dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
 
 dump_modify bondforcechain pad 10                       # pad the timesteps with zeros
 
-thermo 100                                              # set output frequency for output for screen
+thermo 10                                              # set output frequency for output for screen
 thermo_style custom step atoms numbonds dt              # custom pringting to screen
 thermo_modify lost ignore norm no                       # ignore lost atoms and do not normalize output
 
