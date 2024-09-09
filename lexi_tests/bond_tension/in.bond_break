@@ -1,23 +1,25 @@
 # 3D Simulation of Tensioning a Bond
 # By Lexi Arlen August 2024
 
+# Tension applied in the x-direction
+
 
 ### ----------------------------------- variable declaration ----------------------------------- ###
 
 # Material Properties
 variable particle_diameter       equal 100.0      # [m] particles diameter 
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
-variable bond_damp_val           equal 5.0        # [-] from cantilever beam; shear uses 0.05; make higher..?
+variable bond_damp_val           equal 0.0        # [-] from cantilever beam; shear uses 0.05; make higher..?
 variable particle_density        equal 910.0      # [kg/m3] 3D density
 variable elastic_modulus         equal 1.0e8      # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
-variable normal_strength         equal 1e5        # [Pa] bond critical normal strength
-variable shear_strength          equal 1e6        # [Pa] bond critical shear strength
+variable normal_strength         equal 1.0e5      # [Pa] bond critical normal strength
+variable shear_strength          equal 1.0e6      # [Pa] bond critical shear strength
 
 # Simulation Parameters
-variable fx_left                 equal -1.0e4   # [N] strength of tensioning force
-variable fx_right                equal 1.0e4    # [N] strength of tensioning force
-variable fileprint_time          equal 100.0    # [s] how often we print to the file
+variable fx_left                 equal -8e8   # [N] strength of tensioning force
+variable fx_right                equal 8e8    # [N] strength of tensioning force
+variable fileprint_time          equal 0.001    # [s] how often we print to the file
 
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
@@ -30,7 +32,7 @@ variable r3                      equal ${r2}*${particle_radius}
 variable K                       equal ${elastic_modulus}*PI*${r2}/${particle_diameter}
 variable m                       equal 4.0*PI*${r3}*${particle_density}/3.0 # this is the particle mass; change for 2D simulations
 variable w                       equal sqrt($K/$m)
-variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)#/100 # no clue where this comes from - Yu Guo?
+variable dt                      equal 0.95/((1.0+2.9392*${bond_damp_val})*$w)/100 # no clue where this comes from - Yu Guo?
 
 # Simulation Derived Parameters
 variable fileprint_step          equal ceil(${fileprint_time}/${dt})
@@ -45,7 +47,7 @@ newton off                                                              # don't 
 
 processors 1 1 1                        # 1 processor per axis; if using multiple processors, use '*'
 communicate single vel yes              # ghost particles are given position and velocity information
-neighbor 5.0 bin                        # skin distance to specify bin size for neighbor list generation
+neighbor 1.0 bin                        # skin distance to specify bin size for neighbor list generation
 neigh_modify delay 0                    # don't delay the generation of neighbor lists                                                              
 
 # Domain
@@ -86,7 +88,7 @@ run 0                                                                    # inser
  
 compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 btype bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
 
-fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # every itype jtype cutoff?? bondskin btype newperts
+fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # nevery itype jtype cutoff?? bondskin btype newperts
 
 fix dtBond all check/timestep/bond 1 0.1                       # check the time step for the bond
 
@@ -99,13 +101,15 @@ fix_modify bondcr every 0                                      # do not create n
 fix left_force  left_atom  addforce ${fx_left}  0.0  0.0       # apply force; fix <fix name> <group id> addforce <fx> <fy> <fz>
 fix right_force right_atom addforce ${fx_right} 0.0  0.0       # apply force; fix <fix name> <group id> addforce <fx> <fy> <fz>
 
+#fix 1 all bond/break 1 1 ${bond_skin}  TODO: how to break?!?
+
 ### ----------------------------------- run & output simulation ---------------------------------- ###
 
 fix integrate all nve/sphere                            # set the integrator such that moles, velocity, and energy are conserved 
 
 shell mkdir post                                        # make directory to output data
 
-dump dmp all custom ${fileprint_step} post/dump*.liggghts id type x y z vx vy vz fx fy fz omegax omegay omegaz radius
+dump dmp all custom ${fileprint_step} post/dump*.liggghts id type x y z vx vy vz fx fy fz omegax omegay omegaz radius 
 dump_modify dmp pad 10                                  # pad the timesteps with zeros
 
 dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
@@ -113,8 +117,8 @@ dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
 
 dump_modify bondforcechain pad 10                       # pad the timesteps with zeros
 
-thermo 50000                                            # set output frequency for output for screen
-thermo_style custom step atoms numbonds cpu cpuremain   # custom pringting to screen
+thermo 100                                              # set output frequency for output for screen
+thermo_style custom step atoms numbonds dt              # custom pringting to screen
 thermo_modify lost ignore norm no                       # ignore lost atoms and do not normalize output
 
-run 1000000                                             # run
+run 1000                                                # run
