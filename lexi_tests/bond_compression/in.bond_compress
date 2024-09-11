@@ -17,8 +17,8 @@ variable normal_strength         equal 1.0e5      # [Pa] bond critical normal st
 variable shear_strength          equal 1.0e6      # [Pa] bond critical shear strength
 
 # Simulation Parameters
-variable fx_left                 equal -8e8   # [N] strength of tensioning force
-variable fx_right                equal 8e8    # [N] strength of tensioning force
+variable fx_left                 equal 8e8   # [N] strength of tensioning force
+variable fx_right                equal -8e8    # [N] strength of tensioning force
 variable fileprint_time          equal 0.001    # [s] how often we print to the file
 
 # Derived Material Properties
@@ -100,6 +100,7 @@ fix_modify bondcr every 0                                      # do not create n
 
 fix left_force  left_atom  addforce ${fx_left}  0.0  0.0       # apply force; fix <fix name> <group id> addforce <fx> <fy> <fz>
 fix right_force right_atom addforce ${fx_right} 0.0  0.0       # apply force; fix <fix name> <group id> addforce <fx> <fy> <fz>
+
 
 ### ----------------------------------- run & output simulation ---------------------------------- ###
 

@@ -65,7 +65,7 @@ bond_style gran                                                          # linea
 # Specify and create atoms
 fix m1 all property/global youngsModulus peratomtype ${elastic_modulus}  # set the elastic modulus
 fix m2 all property/global poissonsRatio peratomtype ${poissons_ratio}   # set Poisson's ratio
-fix m3 all property/global coefficientRestitution peratomtypepair 1 0.2  # set restituion coefficient to atom type 1
+fix m3 all property/global coefficientRestitution peratomtypepair 1 1.0  # set restituion coefficient to atom type 1
 fix m4 all property/global coefficientFriction peratomtypepair 1 0.7     # set friction coefficient to atom type 1
 
 create_atoms 1 single 100.0 200.0 100.0 units box                        # create one atom of type 1 at x y z; id 1 assigned
