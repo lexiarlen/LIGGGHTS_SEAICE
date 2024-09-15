@@ -28,7 +28,7 @@ def create_bond_df(directory):
     Organizes data so that df['bfx'] gives an array of values across all timesteps.
     '''
     bond_variable_names = ["x1", "y1", "z1", "x2", "y2", "z2",
-                           "batom1", "batom2", "btype", "bfx", "bfy", "bfz",
+                           "batom1", "batom2", "bstatus", "bfx", "bfy", "bfz",
                            "btx", "bty", "btz", "beqdist"] 
 
     # Initialize a dictionary to store lists for each variable, including b_fmag
@@ -75,7 +75,7 @@ def create_bond_df(directory):
     return df
 
 def create_atom_df(directory):
-    atom_variable_names = ['id', 'atype', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'fx',
+    atom_variable_names = ['id', 'mass', 'x', 'y', 'z', 'vx', 'vy', 'vz', 'fx',
                             'fy', 'fz', 'omegax', 'omegay', 'omegaz', 'radius']
     
     # Initialize a dictionary to store DataFrames for each atom ID
