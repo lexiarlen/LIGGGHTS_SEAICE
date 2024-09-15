@@ -23,6 +23,7 @@ variable fileprint_time          equal 0.001    # [s] how often we print to the 
 
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
+variable 3d_equiv_density        equal ${particle_density}*4.0/3.0*${particle_radius}
 variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
 variable bond_skin               equal 1.001*${particle_diameter} # can't be too large
 
@@ -105,6 +106,7 @@ fix right_force right_atom addforce ${fx_right} 0.0  0.0       # apply force; fi
 ### ----------------------------------- run & output simulation ---------------------------------- ###
 
 fix integrate all nve/sphere                            # set the integrator such that moles, velocity, and energy are conserved 
+fix 2d all enforce2d                                    # needs to be used in conjunction with dimension 2
 
 shell mkdir post                                        # make directory to output data
 
