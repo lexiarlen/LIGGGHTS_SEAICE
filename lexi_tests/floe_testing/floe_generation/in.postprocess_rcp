@@ -1,0 +1,135 @@
+### ----------------------------------- output configuration ----------------------------------- ###
+shell mkdir post_bonded_floe                                     
+log post_bonded_floe/log.log
+
+### ----------------------------------- variable declaration ----------------------------------- ###
+
+# Material Properties
+variable diameter                equal 1.0        # [m] particles diameter 
+variable density                 equal 910.0      # [kg/m3] 3D particle density
+variable elastic_modulus         equal 1.0e8      # [Pa]
+variable poissons_ratio          equal 0.3        # [-]
+variable friction                equal 0.7        # [-]
+variable restitution             equal 0.2        # [-]
+variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
+variable bond_damp_val           equal 0.05       # [-] needs to be tuned
+variable normal_strength         equal 1.0e5      # [Pa] bond critical normal strength
+variable shear_strength          equal 1.0e6      # [Pa] bond critical shear strength
+
+# Domain Size
+variable Lx1                     equal -50.0    # [m] minimum x domain boundary
+variable Lx2                     equal 100.0    # [m] maximum x domain boundary
+variable Ly1                     equal -50.0    # [m] minimum y domain boundary
+variable Ly2                     equal 100.0    # [m] maximum y domain boundary
+variable Lz1                     equal -1.0     # [m] minimum z domain boundary
+variable Lz2                     equal 1.0      # [m] maximum z domain boundary
+
+# Floe Size
+variable minx                    equal 0.0      # [m] minimum x domain boundary
+variable maxx                    equal 50.0     # [m] maximum x domain boundary
+variable miny                    equal 0.0      # [m] minimum y domain boundary
+variable maxy                    equal 50.0     # [m] maximum y domain boundary
+variable minz                    equal -0.5     # [m] minimum z domain boundary
+variable maxz                    equal 0.5      # [m] maximum z domain boundary
+
+# Derived Material Properties
+variable radius                  equal 0.5*${diameter}
+variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
+variable bond_skin               equal 1.001*${diameter} # can't be too large
+
+### ----------------------------------- liggghts simulation setup ----------------------------------- ###
+
+processors * * *                        # 1 processor per axis; if using multiple processors, use '*'
+communicate single vel yes              # ghost particles are given position and velocity information
+neighbor 0.1 bin                        # skin distance to specify bin size for neighbor list generation
+neigh_modify delay 0                    # don't delay the generation of neighbor lists                                                              
+
+
+# Preliminaries
+units si                                                                # SI units
+atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6     # specify particle and bond style
+hard_particles yes                                                      # need for high elastic modulus (> 1e5)
+dimension 2
+newton off                                                              # don't use Newton's 3rd law
+
+# Read the restart file; open then do pair stuff & make sure to reapply necessary fixes as these aren't saved
+read_restart grains3d_UD_bondready.restart
+
+# Contact style
+pair_style gran model hertz tangential history                           # Hertz-Mindlin
+pair_coeff * *                                                           # contact coeffs from material props not force field
+
+# Bond style
+bond_style gran                                                          # linear parallel bond
+
+# Set bond properties (won't use but need for restarted simulations) 
+bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+
+# Specify contact properties
+fix m1 all property/global youngsModulus peratomtype ${elastic_modulus}                 # set the elastic modulus
+fix m2 all property/global poissonsRatio peratomtype ${poissons_ratio}                  # set Poisson's ratio
+fix m3 all property/global coefficientRestitution peratomtypepair 1 ${restitution}      # set restituion coefficient to atom type 1
+fix m4 all property/global coefficientFriction peratomtypepair 1 ${friction}            # set friction coefficient to atom type 1
+
+
+timestep 1e-5
+run 0                                                                                   # insert atoms from restart
+### ----------------------------------- confine to floe area ----------------------------------- ###
+region floe block ${minx} ${maxx} ${miny} ${maxy} ${minz} ${maxz} 
+group atoms_in_floe region floe
+group atoms_not_in_floe subtract all atoms_in_floe
+delete_atoms group atoms_not_in_floe
+
+### ----------------------------------- thermo & atom dump ---------------------------------------- ###
+
+fix integrate all nve/sphere                            # set the integrator such that moles, velocity, and energy are conserved 
+compute stress all stress/atom pair
+
+dump dmp all custom 10000 post_bonded_floe/dump*.liggghts id mass x y z vx vy vz fx fy fz radius c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
+dump_modify dmp pad 10                                  # pad the timesteps with zeros
+
+thermo 50000                                             # set output frequency for output for screen
+thermo_style custom step numbonds atoms time dt                  # custom pringting to screen
+thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
+
+run 1
+
+### ----------------------------------- install wall & relax ----------------------------------- ###
+# Add walls
+fix xwalls1 all wall/gran model hertz tangential history primitive type 1 xplane ${minx} 
+fix xwalls2 all wall/gran model hertz tangential history primitive type 1 xplane ${maxx} 
+fix ywalls1 all wall/gran model hertz tangential history primitive type 1 yplane ${miny} 
+fix ywalls2 all wall/gran model hertz tangential history primitive type 1 yplane ${maxy} 
+fix zwalls1 all wall/gran model hertz tangential history primitive type 1 zplane ${minz}
+fix zwalls2 all wall/gran model hertz tangential history primitive type 1 zplane ${maxz}
+
+variable iter loop 9
+label relax_loop
+run 20000
+    velocity all set 0.0 0.0 0.0
+    next iter
+jump SELF relax_loop
+
+### ----------------------------------------- bond & dump --------------------------------------------- ###
+
+compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 bbondbroken bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
+
+fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # nevery itype jtype cutoff?? bondskin btype newperts
+
+fix dtBond all check/timestep/bond 1 0.1                       # check the time step for the bond
+
+run 1                                                          # bond grains
+
+unfix dtBond                                                   # stop checking bond timestep (not doing anymore bonding)
+
+fix_modify bondcr every 0                                      # do not create new bonds after this line
+
+dump_modify dmp every 1
+dump bondforcechain all local 1 post_bonded_floe/bfc*.bond &
+    c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16]
+
+dump_modify bondforcechain pad 10                       # pad the timesteps with zeros
+
+run 1
+
+write_restart bonded_floe.restart

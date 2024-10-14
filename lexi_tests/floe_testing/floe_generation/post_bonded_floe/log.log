@@ -1,0 +1,571 @@
+
+### ----------------------------------- variable declaration ----------------------------------- ###
+
+# Material Properties
+variable diameter                equal 1.0        # [m] particles diameter
+variable density                 equal 910.0      # [kg/m3] 3D particle density
+variable elastic_modulus         equal 1.0e8      # [Pa]
+variable poissons_ratio          equal 0.3        # [-]
+variable friction                equal 0.7        # [-]
+variable restitution             equal 0.2        # [-]
+variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
+variable bond_damp_val           equal 0.05       # [-] needs to be tuned
+variable normal_strength         equal 1.0e5      # [Pa] bond critical normal strength
+variable shear_strength          equal 1.0e6      # [Pa] bond critical shear strength
+
+# Domain Size
+variable Lx1                     equal -50.0    # [m] minimum x domain boundary
+variable Lx2                     equal 100.0    # [m] maximum x domain boundary
+variable Ly1                     equal -50.0    # [m] minimum y domain boundary
+variable Ly2                     equal 100.0    # [m] maximum y domain boundary
+variable Lz1                     equal -1.0     # [m] minimum z domain boundary
+variable Lz2                     equal 1.0      # [m] maximum z domain boundary
+
+# Floe Size
+variable minx                    equal 0.0      # [m] minimum x domain boundary
+variable maxx                    equal 50.0     # [m] maximum x domain boundary
+variable miny                    equal 0.0      # [m] minimum y domain boundary
+variable maxy                    equal 50.0     # [m] maximum y domain boundary
+variable minz                    equal -0.5     # [m] minimum z domain boundary
+variable maxz                    equal 0.5      # [m] maximum z domain boundary
+
+# Derived Material Properties
+variable radius                  equal 0.5*${diameter}
+variable radius                  equal 0.5*1
+variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
+variable shear_modulus           equal 100000000/(2.0*(1.0+${poissons_ratio})) 
+variable shear_modulus           equal 100000000/(2.0*(1.0+0.3)) 
+variable bond_skin               equal 1.001*${diameter} # can't be too large
+variable bond_skin               equal 1.001*1 
+
+### ----------------------------------- liggghts simulation setup ----------------------------------- ###
+
+processors * * *                        # 1 processor per axis; if using multiple processors, use '*'
+communicate single vel yes              # ghost particles are given position and velocity information
+neighbor 0.1 bin                        # skin distance to specify bin size for neighbor list generation
+neigh_modify delay 0                    # don't delay the generation of neighbor lists
+
+
+# Preliminaries
+units si                                                                # SI units
+atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6     # specify particle and bond style
+hard_particles yes                                                      # need for high elastic modulus (> 1e5)
+dimension 2
+newton off                                                              # don't use Newton's 3rd law
+
+# Read the restart file; open then do pair stuff & make sure to reapply necessary fixes as these aren't saved
+read_restart grains3d_UD_bondready.restart
+  orthogonal box = (-50 -50 -1) to (100 100 1)
+  1 by 1 by 1 MPI processor grid
+WARNING: Bond granular: This is a beta version - be careful! (../bond_gran.cpp:106)
+  3381 atoms
+  0 = max # of 1-2 neighbors
+  0 = max # of 1-3 neighbors
+  0 = max # of 1-4 neighbors
+  1 = max # of special neighbors
+
+# Contact style
+pair_style gran model hertz tangential history                           # Hertz-Mindlin
+pair_coeff * *                                                           # contact coeffs from material props not force field
+
+# Bond style
+bond_style gran                                                          # linear parallel bond
+WARNING: Bond granular: This is a beta version - be careful! (../bond_gran.cpp:106)
+
+# Set bond properties (won't use but need for restarted simulations)
+bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+bond_coeff 1 1 0 100000000 ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+bond_coeff 1 1 0 100000000 38461538.4615385 ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+bond_coeff 1 1 0 100000000 38461538.4615385 1 ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+bond_coeff 1 1 0 100000000 38461538.4615385 1 0.05 1 ${normal_strength} ${shear_strength}
+bond_coeff 1 1 0 100000000 38461538.4615385 1 0.05 1 100000 ${shear_strength}
+bond_coeff 1 1 0 100000000 38461538.4615385 1 0.05 1 100000 1000000
+
+# Specify contact properties
+fix m1 all property/global youngsModulus peratomtype ${elastic_modulus}                 # set the elastic modulus
+fix m1 all property/global youngsModulus peratomtype 100000000                 
+fix m2 all property/global poissonsRatio peratomtype ${poissons_ratio}                  # set Poisson's ratio
+fix m2 all property/global poissonsRatio peratomtype 0.3                  
+fix m3 all property/global coefficientRestitution peratomtypepair 1 ${restitution}      # set restituion coefficient to atom type 1
+fix m3 all property/global coefficientRestitution peratomtypepair 1 0.2      
+fix m4 all property/global coefficientFriction peratomtypepair 1 ${friction}            # set friction coefficient to atom type 1
+fix m4 all property/global coefficientFriction peratomtypepair 1 0.7            
+
+
+timestep 1e-5
+run 0                                                                                   # insert atoms from restart
+Resetting global state of Fix contacthistory Style contacthistory from restart file info
+Resetting per-atom state of Fix contacthistory Style contacthistory from restart file info
+Resetting global state of Fix BOND_PROPAGATE Style bond/propagate/gran from restart file info
+Setting up run at Fri Oct 11 14:43:42 2024
+
+Memory usage per processor = 13.4897 Mbytes
+    Step    Atoms         KinEng            CPU 
+ 1800000     3381      204.03081              0 
+Loop time of 2.69007e-07 on 1 procs for 0 steps with 3381 atoms, finish time Fri Oct 11 14:43:42 2024
+
+
+Pair  time (%) = 0 (0)
+Bond  time (%) = 0 (0)
+Neigh time (%) = 0 (0)
+Comm  time (%) = 0 (0)
+Outpt time (%) = 0 (0)
+Other time (%) = 2.69007e-07 (100)
+
+Nlocal:    3381 ave 3381 max 3381 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    6705 ave 6705 max 6705 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 6705
+Ave neighs/atom = 1.98314
+Ave special neighs/atom = 0
+Neighbor list builds = 0
+Dangerous builds = 0
+### ----------------------------------- confine to floe area ----------------------------------- ###
+region floe block ${minx} ${maxx} ${miny} ${maxy} ${minz} ${maxz}
+region floe block 0 ${maxx} ${miny} ${maxy} ${minz} ${maxz}
+region floe block 0 50 ${miny} ${maxy} ${minz} ${maxz}
+region floe block 0 50 0 ${maxy} ${minz} ${maxz}
+region floe block 0 50 0 50 ${minz} ${maxz}
+region floe block 0 50 0 50 -0.5 ${maxz}
+region floe block 0 50 0 50 -0.5 0.5
+group atoms_in_floe region floe
+2735 atoms in group atoms_in_floe
+group atoms_not_in_floe subtract all atoms_in_floe
+646 atoms in group atoms_not_in_floe
+delete_atoms group atoms_not_in_floe
+Deleted 646 atoms, new total = 2735
+
+### ----------------------------------- thermo & atom dump ---------------------------------------- ###
+
+fix integrate all nve/sphere                            # set the integrator such that moles, velocity, and energy are conserved
+compute stress all stress/atom pair
+
+dump dmp all custom 10000 post_bonded_floe/dump*.liggghts id mass x y z vx vy vz fx fy fz radius c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
+dump_modify dmp pad 10                                  # pad the timesteps with zeros
+
+thermo 50000                                             # set output frequency for output for screen
+thermo_style custom step numbonds atoms time dt                  # custom pringting to screen
+thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
+
+run 1
+Setting up run at Fri Oct 11 14:43:42 2024
+
+Memory usage per processor = 16.2898 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1800000        0     2735              0          1e-05 
+ 1800001        0     2735          1e-05          1e-05 
+Loop time of 0.000257418 on 1 procs for 1 steps with 2735 atoms, finish time Fri Oct 11 14:43:42 2024
+
+
+Pair  time (%) = 0.000224429 (87.1847)
+Bond  time (%) = 1.8299e-07 (0.0710868)
+Neigh time (%) = 0 (0)
+Comm  time (%) = 1.79993e-07 (0.0699223)
+Outpt time (%) = 1.0807e-05 (4.19823)
+Other time (%) = 2.1819e-05 (8.4761)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5501 ave 5501 max 5501 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5501
+Ave neighs/atom = 2.01133
+Ave special neighs/atom = 0
+Neighbor list builds = 0
+Dangerous builds = 0
+
+### ----------------------------------- install wall & relax ----------------------------------- ###
+# Add walls
+fix xwalls1 all wall/gran model hertz tangential history primitive type 1 xplane ${minx}
+fix xwalls1 all wall/gran model hertz tangential history primitive type 1 xplane 0
+fix xwalls2 all wall/gran model hertz tangential history primitive type 1 xplane ${maxx}
+fix xwalls2 all wall/gran model hertz tangential history primitive type 1 xplane 50
+fix ywalls1 all wall/gran model hertz tangential history primitive type 1 yplane ${miny}
+fix ywalls1 all wall/gran model hertz tangential history primitive type 1 yplane 0
+fix ywalls2 all wall/gran model hertz tangential history primitive type 1 yplane ${maxy}
+fix ywalls2 all wall/gran model hertz tangential history primitive type 1 yplane 50
+fix zwalls1 all wall/gran model hertz tangential history primitive type 1 zplane ${minz}
+fix zwalls1 all wall/gran model hertz tangential history primitive type 1 zplane -0.5
+fix zwalls2 all wall/gran model hertz tangential history primitive type 1 zplane ${maxz}
+fix zwalls2 all wall/gran model hertz tangential history primitive type 1 zplane 0.5
+
+variable iter loop 9
+label relax_loop
+run 20000
+Setting up run at Fri Oct 11 14:43:42 2024
+
+Memory usage per processor = 18.1274 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1800001        0     2735          1e-05          1e-05 
+ 1820001        0     2735        0.20001          1e-05 
+Loop time of 8.67741 on 1 procs for 20000 steps with 2735 atoms, finish time Fri Oct 11 14:43:51 2024
+
+
+Pair  time (%) = 3.84335 (44.2914)
+Bond  time (%) = 0.00115408 (0.0132998)
+Neigh time (%) = 1.33609 (15.3973)
+Comm  time (%) = 0.0283315 (0.326497)
+Outpt time (%) = 0.0105713 (0.121825)
+Other time (%) = 3.45792 (39.8497)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5461 ave 5461 max 5461 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5461
+Ave neighs/atom = 1.99671
+Ave special neighs/atom = 0
+Neighbor list builds = 2969
+Dangerous builds = 0
+    velocity all set 0.0 0.0 0.0
+    next iter
+jump SELF relax_loop
+run 20000
+Setting up run at Fri Oct 11 14:43:51 2024
+
+Memory usage per processor = 18.1274 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1820001        0     2735        0.20001          1e-05 
+ 1840001        0     2735        0.40001          1e-05 
+Loop time of 7.36295 on 1 procs for 20000 steps with 2735 atoms, finish time Fri Oct 11 14:43:58 2024
+
+
+Pair  time (%) = 3.81454 (51.8073)
+Bond  time (%) = 0.000990703 (0.0134552)
+Neigh time (%) = 0.26479 (3.59625)
+Comm  time (%) = 0.00874747 (0.118804)
+Outpt time (%) = 0.0104768 (0.14229)
+Other time (%) = 3.2634 (44.3219)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5486 ave 5486 max 5486 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5486
+Ave neighs/atom = 2.00585
+Ave special neighs/atom = 0
+Neighbor list builds = 580
+Dangerous builds = 0
+    velocity all set 0.0 0.0 0.0
+    next iter
+jump SELF relax_loop
+run 20000
+Setting up run at Fri Oct 11 14:43:58 2024
+
+Memory usage per processor = 18.1274 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1840001        0     2735        0.40001          1e-05 
+ 1850000        0     2735            0.5          1e-05 
+ 1860001        0     2735        0.60001          1e-05 
+Loop time of 7.17686 on 1 procs for 20000 steps with 2735 atoms, finish time Fri Oct 11 14:44:06 2024
+
+
+Pair  time (%) = 3.79853 (52.9275)
+Bond  time (%) = 0.00100654 (0.0140248)
+Neigh time (%) = 0.117272 (1.63403)
+Comm  time (%) = 0.00607778 (0.0846858)
+Outpt time (%) = 0.0107107 (0.149239)
+Other time (%) = 3.24326 (45.1905)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5489 ave 5489 max 5489 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5489
+Ave neighs/atom = 2.00695
+Ave special neighs/atom = 0
+Neighbor list builds = 251
+Dangerous builds = 0
+    velocity all set 0.0 0.0 0.0
+    next iter
+jump SELF relax_loop
+run 20000
+Setting up run at Fri Oct 11 14:44:06 2024
+
+Memory usage per processor = 18.1274 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1860001        0     2735        0.60001          1e-05 
+ 1880001        0     2735        0.80001          1e-05 
+Loop time of 7.1669 on 1 procs for 20000 steps with 2735 atoms, finish time Fri Oct 11 14:44:13 2024
+
+
+Pair  time (%) = 3.79563 (52.9606)
+Bond  time (%) = 0.00100111 (0.0139685)
+Neigh time (%) = 0.0866976 (1.20969)
+Comm  time (%) = 0.0057502 (0.0802328)
+Outpt time (%) = 0.0104101 (0.145253)
+Other time (%) = 3.26741 (45.5903)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5488 ave 5488 max 5488 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5488
+Ave neighs/atom = 2.00658
+Ave special neighs/atom = 0
+Neighbor list builds = 184
+Dangerous builds = 0
+    velocity all set 0.0 0.0 0.0
+    next iter
+jump SELF relax_loop
+run 20000
+Setting up run at Fri Oct 11 14:44:13 2024
+
+Memory usage per processor = 18.1274 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1880001        0     2735        0.80001          1e-05 
+ 1900000        0     2735              1          1e-05 
+ 1900001        0     2735        1.00001          1e-05 
+Loop time of 7.13363 on 1 procs for 20000 steps with 2735 atoms, finish time Fri Oct 11 14:44:20 2024
+
+
+Pair  time (%) = 3.78368 (53.04)
+Bond  time (%) = 0.00103755 (0.0145445)
+Neigh time (%) = 0.0722152 (1.01232)
+Comm  time (%) = 0.00517093 (0.0724867)
+Outpt time (%) = 0.0106611 (0.149449)
+Other time (%) = 3.26087 (45.7112)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5490 ave 5490 max 5490 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5490
+Ave neighs/atom = 2.00731
+Ave special neighs/atom = 0
+Neighbor list builds = 149
+Dangerous builds = 0
+    velocity all set 0.0 0.0 0.0
+    next iter
+jump SELF relax_loop
+run 20000
+Setting up run at Fri Oct 11 14:44:20 2024
+
+Memory usage per processor = 18.1274 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1900001        0     2735        1.00001          1e-05 
+ 1920001        0     2735        1.20001          1e-05 
+Loop time of 7.10134 on 1 procs for 20000 steps with 2735 atoms, finish time Fri Oct 11 14:44:27 2024
+
+
+Pair  time (%) = 3.77506 (53.1597)
+Bond  time (%) = 0.00101801 (0.0143354)
+Neigh time (%) = 0.0546513 (0.769591)
+Comm  time (%) = 0.00489853 (0.0689803)
+Outpt time (%) = 0.0105459 (0.148506)
+Other time (%) = 3.25517 (45.8388)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5488 ave 5488 max 5488 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5488
+Ave neighs/atom = 2.00658
+Ave special neighs/atom = 0
+Neighbor list builds = 112
+Dangerous builds = 0
+    velocity all set 0.0 0.0 0.0
+    next iter
+jump SELF relax_loop
+run 20000
+Setting up run at Fri Oct 11 14:44:27 2024
+
+Memory usage per processor = 18.1274 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1920001        0     2735        1.20001          1e-05 
+ 1940001        0     2735        1.40001          1e-05 
+Loop time of 7.10206 on 1 procs for 20000 steps with 2735 atoms, finish time Fri Oct 11 14:44:34 2024
+
+
+Pair  time (%) = 3.77451 (53.1467)
+Bond  time (%) = 0.000995188 (0.0140127)
+Neigh time (%) = 0.0470577 (0.662592)
+Comm  time (%) = 0.00475269 (0.0669198)
+Outpt time (%) = 0.0134776 (0.18977)
+Other time (%) = 3.26127 (45.92)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5489 ave 5489 max 5489 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5489
+Ave neighs/atom = 2.00695
+Ave special neighs/atom = 0
+Neighbor list builds = 96
+Dangerous builds = 0
+    velocity all set 0.0 0.0 0.0
+    next iter
+jump SELF relax_loop
+run 20000
+Setting up run at Fri Oct 11 14:44:34 2024
+
+Memory usage per processor = 18.1274 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1940001        0     2735        1.40001          1e-05 
+ 1950000        0     2735            1.5          1e-05 
+ 1960001        0     2735        1.60001          1e-05 
+Loop time of 7.0431 on 1 procs for 20000 steps with 2735 atoms, finish time Fri Oct 11 14:44:41 2024
+
+
+Pair  time (%) = 3.76047 (53.3922)
+Bond  time (%) = 0.00130842 (0.0185773)
+Neigh time (%) = 0.0350814 (0.498096)
+Comm  time (%) = 0.00447775 (0.0635764)
+Outpt time (%) = 0.0111224 (0.157919)
+Other time (%) = 3.23064 (45.8696)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5489 ave 5489 max 5489 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5489
+Ave neighs/atom = 2.00695
+Ave special neighs/atom = 0
+Neighbor list builds = 68
+Dangerous builds = 0
+    velocity all set 0.0 0.0 0.0
+    next iter
+jump SELF relax_loop
+run 20000
+Setting up run at Fri Oct 11 14:44:41 2024
+
+Memory usage per processor = 18.1274 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1960001        0     2735        1.60001          1e-05 
+ 1980001        0     2735        1.80001          1e-05 
+Loop time of 7.01843 on 1 procs for 20000 steps with 2735 atoms, finish time Fri Oct 11 14:44:48 2024
+
+
+Pair  time (%) = 3.75137 (53.4503)
+Bond  time (%) = 0.00100429 (0.0143093)
+Neigh time (%) = 0.0288125 (0.410526)
+Comm  time (%) = 0.00433279 (0.0617344)
+Outpt time (%) = 0.0111246 (0.158505)
+Other time (%) = 3.22179 (45.9047)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5490 ave 5490 max 5490 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5490
+Ave neighs/atom = 2.00731
+Ave special neighs/atom = 0
+Neighbor list builds = 55
+Dangerous builds = 0
+    velocity all set 0.0 0.0 0.0
+    next iter
+jump SELF relax_loop
+
+### ----------------------------------------- bond & dump --------------------------------------------- ###
+
+compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 bbondbroken bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
+
+fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # nevery itype jtype cutoff?? bondskin btype newperts
+fix bondcr all bond/create/gran 1 1 1 1.001 1 6         
+
+fix dtBond all check/timestep/bond 1 0.1                       # check the time step for the bond
+
+run 1                                                          # bond grains
+Setting up run at Fri Oct 11 14:44:48 2024
+
+Memory usage per processor = 19.6054 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1980001        0     2735        1.80001          1e-05 
+ 1980002     5490     2735        1.80002          1e-05 
+Loop time of 0.0100351 on 1 procs for 1 steps with 2735 atoms, finish time Fri Oct 11 14:44:48 2024
+
+
+Pair  time (%) = 0.000242018 (2.41171)
+Bond  time (%) = 0.000280332 (2.79351)
+Neigh time (%) = 0.00358334 (35.708)
+Comm  time (%) = 1.1056e-05 (0.110173)
+Outpt time (%) = 3.5003e-05 (0.348805)
+Other time (%) = 0.00588336 (58.6278)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5490 ave 5490 max 5490 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5490
+Ave neighs/atom = 2.00731
+Ave special neighs/atom = 0
+Neighbor list builds = 1
+Dangerous builds = 0
+
+unfix dtBond                                                   # stop checking bond timestep (not doing anymore bonding)
+
+fix_modify bondcr every 0                                      # do not create new bonds after this line
+
+dump_modify dmp every 1
+dump bondforcechain all local 1 post_bonded_floe/bfc*.bond     c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16]
+
+dump_modify bondforcechain pad 10                       # pad the timesteps with zeros
+
+run 1
+Setting up run at Fri Oct 11 14:44:48 2024
+
+Memory usage per processor = 22.7633 Mbytes
+    Step numbonds    Atoms           Time             Dt 
+ 1980002     5490     2735        1.80002          1e-05 
+ 1980003     5490     2735        1.80003          1e-05 
+Loop time of 0.0545792 on 1 procs for 1 steps with 2735 atoms, finish time Fri Oct 11 14:44:48 2024
+
+
+Pair  time (%) = 0.000243555 (0.446241)
+Bond  time (%) = 0.00026174 (0.47956)
+Neigh time (%) = 0 (0)
+Comm  time (%) = 1.62006e-07 (0.000296828)
+Outpt time (%) = 0.0538894 (98.736)
+Other time (%) = 0.000184399 (0.337856)
+
+Nlocal:    2735 ave 2735 max 2735 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:    0 ave 0 max 0 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:    5490 ave 5490 max 5490 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 5490
+Ave neighs/atom = 2.00731
+Ave special neighs/atom = 0
+Neighbor list builds = 0
+Dangerous builds = 0
+
+write_restart bonded_floe.restart

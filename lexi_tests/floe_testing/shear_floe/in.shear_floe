@@ -1,4 +1,4 @@
-# 3D Simulation of Shearing an Ice Floe
+# 2D Simulation of Shearing an Ice Floe
 # By Lexi Arlen September 2024
 
 # Shearing applied in the x-direction
@@ -7,9 +7,9 @@
 ### ----------------------------------- variable declaration ----------------------------------- ###
 
 # Material Properties
-variable particle_diameter       equal 10.0       # [m] particles diameter 
+variable particle_diameter       equal 1.0       # [m] particles diameter 
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
-variable bond_damp_val           equal 0.1        # [-] from cantilever beam; shear uses 0.05; make higher..?
+variable bond_damp_val           equal 0.05        # [-] from cantilever beam; shear uses 0.05; make higher..?
 variable particle_density        equal 910.0      # [kg/m3] 3D density
 variable elastic_modulus         equal 1.0e8      # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
@@ -17,9 +17,9 @@ variable normal_strength         equal 1.0e5      # [Pa] bond critical normal st
 variable shear_strength          equal 1.0e6      # [Pa] bond critical shear strength
 
 # Simulation Parameters
-variable fx_top                  equal -5e6   # [N] strength of tensioning force
-variable fx_bot                  equal 5e6    # [N] strength of tensioning force
-variable fileprint_time          equal 0.05    # [s] how often we print to the file
+variable fx_top                  equal -3e4    # [N] strength of tensioning force
+variable fx_bot                  equal 3e4     # [N] strength of tensioning force
+variable fileprint_time          equal 0.005    # [s] how often we print to the file
 
 # Derived Material Properties
 variable particle_radius         equal 0.5*${particle_diameter}
@@ -47,16 +47,16 @@ atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6     # specif
 hard_particles yes                                                      # need for high elastic modulus (> 1e5)
 newton off                                                              # don't use Newton's 3rd law
 
-processors 1 1 1                        # 1 processor per axis; if using multiple processors, use '*'
+processors * * *                        # 1 processor per axis; if using multiple processors, use '*'
 communicate single vel yes              # ghost particles are given position and velocity information
 neighbor 1.0 bin                        # skin distance to specify bin size for neighbor list generation
 neigh_modify delay 0                    # don't delay the generation of neighbor lists                                                              
 
 # Domain
 boundary f f p                                                           # periodic boundary conditions in x y z
-region domain block -100.0 300.0 -100.0 300.0 -6.0 6.0 units box         # (min X, max X, min Y, max Y, min Z, max Z)
+region domain block -100.0 200.0 -100.0 200.0 -1.0 1.0 units box         # (min X, max X, min Y, max Y, min Z, max Z)
 create_box 1 domain                                                      # create box with domain above and 1 particle type
-region insertion_region block 0.0 150.0 0.0 150.0 -6.0 6.0 units box     # (min X, max X, min Y, max Y, min Z, max Z)
+region insertion_region block 0.0 50.0 0.0 50.0 -0.6 0.6 units box     # (min X, max X, min Y, max Y, min Z, max Z)
 
 # Contact style
 pair_style gran model hertz tangential history                           # Hertz-Mindlin
@@ -77,8 +77,8 @@ create_atoms 1 region insertion_region units lattice                     # atom 
 
 set type 1 diameter ${particle_diameter} density ${particle_density}     # assign all atoms w/ initial values
 
-region top_region block 0.0 150.0 140.0 150.0 -5.0 5.0 units box         # create region at top of floe
-region bot_region block 0.0 150.0 0.0 10.0 -5.0 5.0 units box            # create region at bottom of floe
+region top_region block 0.0 50.0 48.0 50.0 -0.5 0.5 units box         # create region at top of floe
+region bot_region block 0.0 50.0 0.0 2.0 -0.5 0.5 units box            # create region at bottom of floe
 group top region top_region                                              # create group for balls at top of floe
 group bot region bot_region                                              # create group for balls at bottom of floe
 
@@ -113,18 +113,18 @@ fix bot_force bot addforce ${fx_bot} 0.0 0.0       # apply force to bot atoms; f
 fix integrate all nve/sphere                            # set the integrator such that moles, velocity, and energy are conserved 
 fix 2d all enforce2d
 
-shell mkdir post                                        # make directory to output data
+shell mkdir post2d                                        # make directory to output data
 
-dump dmp all custom ${fileprint_step} post/dump*.liggghts id mass x y z vx vy vz fx fy fz omegax omegay omegaz radius 
+dump dmp all custom ${fileprint_step} post2d/dump*.liggghts id mass x y z vx vy vz fx fy fz omegax omegay omegaz radius 
 dump_modify dmp pad 10                                  # pad the timesteps with zeros
 
-dump bondforcechain all local ${fileprint_step} post/bfc*.bond &
+dump bondforcechain all local ${fileprint_step} post2d/bfc*.bond &
     c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16]
 
 dump_modify bondforcechain pad 10                       # pad the timesteps with zeros
 
-thermo 100                                              # set output frequency for output for screen
+thermo 500                                              # set output frequency for output for screen
 thermo_style custom step atoms numbonds dt              # custom pringting to screen
 thermo_modify lost ignore norm no                       # ignore lost atoms and do not normalize output
 
-run 10000                                                # run
+run 20000                                                # run

@@ -68,7 +68,7 @@ fix m2 all property/global poissonsRatio peratomtype ${poissons_ratio}   # set P
 fix m3 all property/global coefficientRestitution peratomtypepair 1 0.2  # set restituion coefficient to atom type 1
 fix m4 all property/global coefficientFriction peratomtypepair 1 0.7     # set friction coefficient to atom type 1
 
-lattice sq2 ${lattice_spacing}
+lattice hex ${lattice_spacing}
 
 create_atoms 1 region domain units lattice      # atom type, region for attoms to be created, 
 
@@ -85,15 +85,15 @@ run 0                                                                    # inser
  
 compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 bbondbroken bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
 
-# fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # nevery itype jtype cutoff?? bondskin btype newperts
+fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # nevery itype jtype cutoff?? bondskin btype newperts
 
-# fix dtBond all check/timestep/bond 1 0.1                       # check the time step for the bond
+fix dtBond all check/timestep/bond 1 0.1                       # check the time step for the bond
 
-# run 1                                                          # bond grains
+run 1                                                          # bond grains
 
-# unfix dtBond                                                   # stop checking bond timestep (not doing anymore bonding)
+unfix dtBond                                                   # stop checking bond timestep (not doing anymore bonding)
 
-# fix_modify bondcr every 0                                      # do not create new bonds after this line
+fix_modify bondcr every 0                                      # do not create new bonds after this line
 
 ### ----------------------------------- run & output simulation ---------------------------------- ###
 

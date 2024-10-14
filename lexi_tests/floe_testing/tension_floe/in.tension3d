@@ -54,7 +54,7 @@ neigh_modify delay 0                    # don't delay the generation of neighbor
 
 # Domain
 boundary f f p                                                           # periodic boundary conditions in x y z
-region domain block -100.0 200.0 -100.0 200.0 -1.0 1.0 units box         # (min X, max X, min Y, max Y, min Z, max Z)
+region domain block ${Lx1} ${Lx2} ${Ly1} ${Ly2} ${Lz1} ${Lz2} units box         # (min X, max X, min Y, max Y, min Z, max Z)
 create_box 1 domain                                                      # create box with domain above and 1 particle type
 region insertion_region block 0.0 50.0 0.0 50.0 -0.6 0.6 units box     # (min X, max X, min Y, max Y, min Z, max Z)
 
@@ -129,4 +129,4 @@ thermo 500                                              # set output frequency f
 thermo_style custom step atoms numbonds dt              # custom pringting to screen
 thermo_modify lost ignore norm no                       # ignore lost atoms and do not normalize output
 
-run 30000                                                # run
+run 70000                                                # run

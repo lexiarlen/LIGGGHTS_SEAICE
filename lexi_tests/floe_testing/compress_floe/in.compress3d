@@ -17,8 +17,8 @@ variable normal_strength         equal 1.0e5      # [Pa] bond critical normal st
 variable shear_strength          equal 1.0e6      # [Pa] bond critical shear strength
 
 # Simulation Parameters
-variable fy_top                  equal -3e4    # [N] strength of tensioning force
-variable fy_bot                  equal 3e4     # [N] strength of tensioning force
+variable fy_top                  equal -5e4    # [N] strength of tensioning force
+variable fy_bot                  equal 5e4     # [N] strength of tensioning force
 variable fileprint_time          equal 0.005    # [s] how often we print to the file
 
 # Derived Material Properties
@@ -129,4 +129,4 @@ thermo 500                                              # set output frequency f
 thermo_style custom step atoms numbonds dt              # custom pringting to screen
 thermo_modify lost ignore norm no                       # ignore lost atoms and do not normalize output
 
-run 30000                                                # run
+run 70000                                                # run

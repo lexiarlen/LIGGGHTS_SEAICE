@@ -2,8 +2,8 @@
 # By Lexi Arlen October 2024
 
 ### ----------------------------------- output configuration ----------------------------------- ###
-shell mkdir post2d_br                                      # make directory to output data
-log post2d_br/log.log
+shell mkdir post2d                                      # make directory to output data
+log post2d/log.log
 
 ### ----------------------------------- variable declaration ----------------------------------- ###
 
@@ -12,8 +12,8 @@ variable diameter                equal 1.0        # [m] particles diameter
 variable density                 equal 910.0      # [kg/m3] 3D particle density
 variable elastic_modulus         equal 1.0e8      # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
-variable restitution             equal 0.2        # [-]
 variable friction                equal 0.7        # [-]
+variable restitution             equal 0.2        # [-]
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
 variable bond_damp_val           equal 0.05       # [-] needs to be tuned
 variable normal_strength         equal 1.0e5      # [Pa] bond critical normal strength
@@ -25,13 +25,13 @@ variable Lx2                     equal 100.0    # [m] maximum x domain boundary
 variable Ly1                     equal -50.0    # [m] minimum y domain boundary
 variable Ly2                     equal 100.0    # [m] maximum y domain boundary
 variable Lz1                     equal -1.0     # [m] minimum z domain boundary
-variable Lz2                     equal 2.0      # [m] maximum z domain boundary
+variable Lz2                     equal 1.0      # [m] maximum z domain boundary
 variable minx                    equal 0.0      # [m] minimum x domain boundary
 variable maxx                    equal 50.0     # [m] maximum x domain boundary
 variable miny                    equal 0.0      # [m] minimum y domain boundary
 variable maxy                    equal 70.0     # [m] maximum y domain boundary
-variable minz                    equal 0.0      # [m] minimum z domain boundary
-variable maxz                    equal 1.0      # [m] maximum z domain boundary
+variable minz                    equal -0.5      # [m] minimum z domain boundary
+variable maxz                    equal 0.5      # [m] maximum z domain boundary
 variable sic                     equal 0.78     # [-] packing density
 
 # Derived Material Properties
@@ -40,15 +40,13 @@ variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_r
 
 # Derived Simulation Properties
 variable lattice_spacing         equal ${radius}*sqrt(PI/${sic})
-variable dt                      equal 1e-5
+variable dt                      equal 5e-6
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
 # Preliminaries
 units si                                # SI units
-atom_style  hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6                      # specify particle style
-#atom_modify	map array sort 0 0
-dimension 2
+atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6     # specify particle and bond style
 hard_particles yes                      # need for high elastic modulus (> 1e5)
 newton off                              # don't use Newton's 3rd law
 
@@ -58,7 +56,7 @@ neighbor 0.05 bin                        # skin distance to specify bin size for
 neigh_modify delay 0                    # don't delay the generation of neighbor lists                                                              
 
 # Domain
-boundary m m p                                               # periodic boundaries in z (required for 2d); minimum shrink wrapping in x y    
+boundary f f f                                               # periodic boundaries in z (required for 2d); minimum shrink wrapping in x y    
 region domain block ${Lx1} ${Lx2} ${Ly1} ${Ly2} ${Lz1} ${Lz2} units box     # (min X, max X, min Y, max Y, min Z, max Z)
 create_box 1 domain                                          # create box with domain above and 1 particle type                                   
 
@@ -83,10 +81,12 @@ fix xwalls1 all wall/gran model hertz tangential history primitive type 1 xplane
 fix xwalls2 all wall/gran model hertz tangential history primitive type 1 xplane ${maxx} 
 fix ywalls1 all wall/gran model hertz tangential history primitive type 1 yplane ${miny} 
 fix ywalls2 all wall/gran model hertz tangential history primitive type 1 yplane ${maxy} 
+fix zwalls1 all wall/gran model hertz tangential history primitive type 1 zplane ${minz}
+fix zwalls2 all wall/gran model hertz tangential history primitive type 1 zplane ${maxz}
 
 # Particle Insertion
 region insertion_region block ${minx} ${maxx} ${miny} ${maxy} ${minz} ${maxz} units box     # (min X, max X, min Y, max Y, min Z, max Z)
-lattice sq ${lattice_spacing}
+lattice sc ${lattice_spacing}
 create_atoms 1 region insertion_region units lattice                     # atom type, region for attoms to be created
 group all_atoms type 1
 set group all_atoms diameter ${diameter} density ${density}    		   # assign all atoms w/ initial values
@@ -102,58 +102,34 @@ run 0
 
 timestep ${dt}  
 
+
+
 ### ------------------------------------- output parameters ------------------------------------------ ###
 
-fix 2d all enforce2d                                    # ensures no motion in z-direction
 fix integrate all nve/sphere                            # set the integrator such that moles, velocity, and energy are conserved 
 compute stress all stress/atom pair
 
-dump dmp all custom 20000 post2d_br/dump*.liggghts id mass x y z vx vy vz fx fy fz radius c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
+dump dmp all custom 20000 post3d/dump*.liggghts id mass x y z vx vy vz fx fy fz radius c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
 dump_modify dmp pad 10                                  # pad the timesteps with zeros
 
 thermo 50000                                             # set output frequency for output for screen
 thermo_style custom step atoms time dt                  # custom pringting to screen
-thermo_modify lost ignore norm no                       # ignore lost atoms and do not normalize output
+thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
 
 ### ------------------------------------- redistribute particles ------------------------------------------ ###
 
-# # Apply 20% polydispersity 
+# Apply 20% polydispersity 
 variable	num_grains equal count(all_atoms)
 label		loop_through_each_grain
 variable	iter loop ${num_grains}
    variable	modifiedDiameter equal ${diameter}*(random(-1,1,93263)*0.2+1)
-   set	 	atom ${iter} diameter ${modifiedDiameter}
+   set	 	atom ${iter} diameter ${modifiedDiameter} density ${density}
 next		iter
 jump		SELF loop_through_each_grain
-run 1
 
-# Up
-fix grav_posy all gravity 9.8 vector 0.0 1.0 0.0
+
 run 200000
-unfix grav_posy
 
-# # Left
-# fix grav_negx all gravity 9.8 vector -1.0 1.0 0.0
-# run 1000
-# unfix grav_negx
-
-# # Right
-# fix grav_posx all gravity 9.8 vector -1.0 1.0 0.0
-# run 1000
-# unfix grav_posx
-
-# Down & relax
-fix grav_negy all gravity 9.8 vector 0.0 -1.0 0.0
-
-variable iter loop 4
-label loop_start
-run 200000
-    velocity all set 0.0 0.0 0.0
-    next iter
-jump SELF loop_start
-
-
-# Reapply monodispersity
 # implement 0% polydispersity by randomly assigning new diameters looping through each grain
 label		loop_through_each_grain2
 variable	iter loop ${num_grains}
@@ -161,15 +137,25 @@ variable	iter loop ${num_grains}
 next		iter
 jump		SELF loop_through_each_grain2
 
-variable iter loop 2
-label loop_start2
+# # Up
+fix grav_posy all gravity 9.8 vector 0.0 1.0 0.0
+run 200000
+unfix grav_posy
+
+# # Down & relax
+fix grav_negy all gravity 9.8 vector 0.0 -1.0 0.0
+
+variable iter loop 12
+label loop_start
 run 100000
     velocity all set 0.0 0.0 0.0
     next iter
-jump SELF loop_start2
+jump SELF loop_start
+
+# turn off gravity & relax
 
 unfix grav_negy
-variable iter loop 2
+variable iter loop 8
 label loop_start
 run 100000
     velocity all set 0.0 0.0 0.0
@@ -178,6 +164,4 @@ jump SELF loop_start
 
 run 200000
 
-write_restart grains2d_UD_fixed.restart
-write_data grains2d_UD_bondready.data
-
+write_restart grains3d_UD_bondready.restart
