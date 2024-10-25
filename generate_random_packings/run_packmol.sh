@@ -7,8 +7,8 @@ conda activate "packmol_processing"
 echo "Enter number of particles:"
 read NUM_PARTICLES
 
-echo "Enter domain bounds (xlo xhi ylo yhi zlo zhi):"
-read XLO XHI YLO YHI ZLO ZHI
+echo "Enter domain bounds (xlo xhi ylo yhi):"
+read XLO XHI YLO YHI
 
 echo "Enter bond skin:"
 read BOND_SKIN
@@ -27,10 +27,10 @@ RADIUS=$(awk "BEGIN {print $DIAMETER / 2}")
 TOLERANCE=$(awk "BEGIN {print $DIAMETER * $BOND_SKIN}")
 
 # Adjust domain bounds to account for particle radius and tolerance
-ADJ_XLO=$(awk "BEGIN {print $XLO - $TOLERANCE / 2}")
-ADJ_XHI=$(awk "BEGIN {print $XHI + $TOLERANCE / 2}")
-ADJ_YLO=$(awk "BEGIN {print $YLO - $TOLERANCE / 2}")
-ADJ_YHI=$(awk "BEGIN {print $YHI + $TOLERANCE / 2}")
+ADJ_XLO=$(awk "BEGIN {print $XLO + $TOLERANCE / 2}")
+ADJ_XHI=$(awk "BEGIN {print $XHI - $TOLERANCE / 2}")
+ADJ_YLO=$(awk "BEGIN {print $YLO + $TOLERANCE / 2}")
+ADJ_YHI=$(awk "BEGIN {print $YHI - $TOLERANCE / 2}")
 
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
@@ -53,7 +53,7 @@ output packed_particles.xyz  # output file
 # Define the packing box with adjusted boundaries
 structure particle.xyz  # single particle
   number $NUM_PARTICLES  # number of particles
-  inside box $ADJ_XLO $ADJ_YLO $ZLO $ADJ_XHI $ADJ_YHI $ZHI  # adjusted box dimensions
+  inside box $ADJ_XLO $ADJ_YLO 0.0 $ADJ_XHI $ADJ_YHI 0.0  # adjusted box dimensions
   radius $RADIUS  # set particle radius
 end structure
 EOF
@@ -62,7 +62,7 @@ EOF
 julia -e "using Packmol; run_packmol(raw\"$(pwd)/$OUTPUT_DIR/particle.inp\")"
 
 # Run the Python script to process the output
-python process_packed_particles.py $XLO $XHI $YLO $YHI $ZLO $ZHI $DIAMETER $DENSITY "$OUTPUT_DIR"
+python process_packed_particles.py $XLO $XHI $YLO $YHI 0.0 0.0 $DIAMETER $DENSITY "$OUTPUT_DIR"
 
 # Deactivate conda environment
 conda deactivate
