@@ -79,17 +79,19 @@ def main():
     parser = argparse.ArgumentParser(description='Process LIGGGHTS simulation data.')
     parser.add_argument('post_directory', help='Path to the post directory containing simulation outputs')
     parser.add_argument('--column_names', default=None, help='Column names for bond data (default is "batom1 batom2 bbondbroken bforceX bforceY bforceZ")')
+    parser.add_argument('output_directory', help='Path to where you want to output data')
     args = parser.parse_args()
 
     post_dir = args.post_directory
+    out_dir = args.output_directory
     column_names = args.column_names
 
     # Process atom data
-    atom_output_path = os.path.join(post_dir, 'atoms.nc')
+    atom_output_path = os.path.join(out_dir, 'atoms.nc')
     get_atom_ds(post_dir, atom_output_path)
 
     # Process bond data
-    bond_output_path = os.path.join(post_dir, 'bonds.nc')
+    bond_output_path = os.path.join(out_dir, 'bonds.nc')
     get_bond_ds(post_dir, bond_output_path, column_names=column_names)
 
 if __name__ == '__main__':
