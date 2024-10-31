@@ -44,7 +44,7 @@ variable Fdrag_ocean_z           atom "0.0"
 
 # Simulation Parameters
 variable lattice_spacing         equal ${diameter}*(1+${polydispersity})
-variable dump_freq               equal 20
+variable dump_freq               equal 5400
 
 # Numerics
 variable dt                      equal 1e-3
@@ -104,8 +104,7 @@ jump		SELF loop_through_each_grain
 
 ### ----------------------------------- bond grains ---------------------------------- ###
  
-#compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 bbondbroken bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
-compute bc all property/local batom1 batom2 bbondbroken bforceX bforceY bforceZ 
+compute bc all property/local batom1x batom1y batom1z batom2x batom2y batom2z batom1 batom2 bbondbroken bforceX bforceY bforceZ btorqueX btorqueY btorqueZ beqdist
 
 fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # nevery itype jtype cutoff?? bondskin btype newperts
 
@@ -132,14 +131,14 @@ compute stress all stress/atom pair
 dump dmp all custom ${dump_freq} post/dump*.liggghts id mass x y z vx vy vz fx fy fz radius c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
 dump_modify dmp pad 10 sort id first yes                             # pad the timesteps with zeros
 
-thermo 50                                             # set output frequency for output for screen
+thermo 54000                                             # set output frequency for output for screen
 thermo_style custom step numbonds atoms time dt                  # custom pringting to screen
 thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
 
+#compute bc all property/local batom1 batom2 bbondbroken bforceX bforceY bforceZ 
 
 dump bondforcechain all local ${dump_freq} post/bfc*.bond &
-    c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] #c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16]
+    c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] c_bc[9] c_bc[10] c_bc[11] c_bc[12] c_bc[13] c_bc[14] c_bc[15] c_bc[16]
 dump_modify bondforcechain pad 10 label 'BONDS' 
 
-run 100
-write_data test.data
+run 10800000
