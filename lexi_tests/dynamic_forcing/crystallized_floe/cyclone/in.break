@@ -3,12 +3,12 @@
 # Material Properties
 variable diameter                equal 0.5        # [m] particles diameter 
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
-variable bond_damp_val           equal 0.05       # [-] from cantilever beam; shear uses 0.05; make higher..?
+variable bond_damp_val           equal 0.0        # [-] from cantilever beam; shear uses 0.05; make higher..?
 variable ice_density             equal 910.0      # [kg/m3] 3D density
 variable elastic_modulus         equal 1.0e7      # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
-variable normal_strength         equal 1.0e3      # [Pa] bond critical normal strength
-variable shear_strength          equal 1.0e4      # [Pa] bond critical shear strength
+variable normal_strength         equal 1.0e2      # [Pa] bond critical normal strength
+variable shear_strength          equal 1.0e3      # [Pa] bond critical shear strength
 variable polydispersity          equal 0.02       # [-] percent polydispersity to apply
 
 # Derived Material Properties
@@ -18,35 +18,42 @@ variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_r
 variable bond_skin               equal 1.05*${diameter} 
 
 # Forcing Parameters
-variable coeff_drag_ocean        equal 0.6      # [-] drag coeff between ice & ocean
-variable coeff_drag_atmos        equal 0.1      # [-] drag coeff between ice & atmosphere
+variable coeff_drag_ocean        equal 0.006      # [-] drag coeff between ice & ocean
+variable coeff_drag_atmos        equal 0.001      # [-] drag coeff between ice & atmosphere
 variable seawater_density        equal 1020       # [kg/m3] density of seawater
 variable atmos_density           equal 1          # [kg/m3] density of air
-variable max_wind_speed          atom "20"        # [m/s] maximum wind speed
-variable L                       atom "25.0"      # [m] domain length scale
+
+variable max_wind_speed          atom "25"       # [m/s] maximum wind speed
+variable w                       atom "7.0"       # [m] eye of the storm width
+variable a                       atom "90"
+variable mx                      atom "0.0"       # [m] cyclone x coordinate
+variable my                      atom "0.0"       # [m] cyclone y coordinate
+
+variable r                       atom "sqrt((v_mx-x)^2+(v_my-y)^2)"
+variable f                       atom "(1/v_w)*exp(1-v_r/v_w)"
 
 # Forcing
 variable ocean_forcing_coeff     equal ${seawater_density}*${coeff_drag_ocean}*PI*${radius_squared}*${ice_density}/${seawater_density}
 variable atmos_forcing_coeff     equal ${atmos_density}*${coeff_drag_atmos}*PI*${radius_squared}*(${seawater_density}-${ice_density})/${seawater_density}
 
-variable u_atmos_x               atom "v_max_wind_speed*sin(y*2*PI/v_L)"                                                        
-variable u_atmos_y               atom "0.0"
+variable u_atmos_x               atom "v_max_wind_speed*-1*v_f*(cos(v_a)*(x-v_mx)+sin(v_a)*(y-v_my))"                                                        
+variable u_atmos_y               atom "v_max_wind_speed*-1*v_f*(cos(v_a)*(y-v_my)-sin(v_a)*(x-v_mx))"   
 variable u_ocean_x               atom "0.0"
 variable u_ocean_y               atom "0.0"
 
-variable Fdrag_atmos_x           atom ${atmos_forcing_coeff}*abs(v_u_atmos_x)*v_u_atmos_x
-variable Fdrag_atmos_y           atom ${atmos_forcing_coeff}*abs(v_u_atmos_y)*v_u_atmos_y
+variable Fdrag_atmos_x           atom ${atmos_forcing_coeff}*sqrt(v_u_atmos_x^2+v_u_atmos_y^2)*v_u_atmos_x
+variable Fdrag_atmos_y           atom ${atmos_forcing_coeff}*sqrt(v_u_atmos_x^2+v_u_atmos_y^2)*v_u_atmos_y
 variable Fdrag_atmos_z           atom "0.0"
-variable Fdrag_ocean_x           atom ${ocean_forcing_coeff}*abs(v_u_ocean_x-vx)*(v_u_ocean_x-vx)
-variable Fdrag_ocean_y           atom ${ocean_forcing_coeff}*abs(v_u_ocean_y-vy)*(v_u_ocean_y-vy)
+variable Fdrag_ocean_x           atom ${ocean_forcing_coeff}*sqrt((v_u_ocean_x-vx)^2+(v_u_ocean_y-vy)^2)*(v_u_ocean_x-vx)
+variable Fdrag_ocean_y           atom ${ocean_forcing_coeff}*sqrt((v_u_ocean_x-vx)^2+(v_u_ocean_y-vy)^2)*(v_u_ocean_y-vy)
 variable Fdrag_ocean_z           atom "0.0"
 
 # Simulation Parameters
 variable lattice_spacing         equal ${diameter}*(1+${polydispersity})
 
 # Numerics & output
-variable dt                      equal 1e-3
-variable dump_freq               equal 2500
+variable dt                      equal 8e-4
+variable dump_freq               equal 4000
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
@@ -78,7 +85,7 @@ pair_coeff * *                                                           # conta
 # Contact law
 fix m1 all property/global youngsModulus peratomtype ${elastic_modulus}  # set the elastic modulus
 fix m2 all property/global poissonsRatio peratomtype ${poissons_ratio}   # set Poisson's ratio
-fix m3 all property/global coefficientRestitution peratomtypepair 1 0.2  # set restituion coefficient to atom type 1
+fix m3 all property/global coefficientRestitution peratomtypepair 1 0.5  # set restituion coefficient to atom type 1
 fix m4 all property/global coefficientFriction peratomtypepair 1 0.7     # set friction coefficient to atom type 1
 
 # Add walls
@@ -128,7 +135,7 @@ fix atmos_drag all addforce v_Fdrag_atmos_x v_Fdrag_atmos_y v_Fdrag_atmos_z
 dump dmp all custom ${dump_freq} post/dump*.liggghts id mass x y z vx vy vz fx fy fz radius c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
 dump_modify dmp pad 10 sort id first yes                             # pad the timesteps with zeros
 
-thermo 10000                                             # set output frequency for output for screen
+thermo 5000                                             # set output frequency for output for screen
 thermo_style custom step numbonds atoms time dt                  # custom pringting to screen
 thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
 
@@ -136,4 +143,4 @@ dump bondforcechain all local ${dump_freq} post/bfc*.bond &
     c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6]
 dump_modify bondforcechain pad 10 label 'BONDS' first yes
 
-run 500000
+run 800000
