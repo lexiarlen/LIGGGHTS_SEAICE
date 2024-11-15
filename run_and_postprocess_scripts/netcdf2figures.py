@@ -1,8 +1,11 @@
+#!/usr/bin/env python3
+
+# conda environment: netcdf2figs
+
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import os
-import glob
 import xarray as xr
 from matplotlib.animation import FuncAnimation
 from matplotlib.patches import Circle
@@ -13,23 +16,10 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 import random
 
-# inputs
-base_path = r'c:\Users\arlenlex\Documents\liggghts_data\dynamic_forcing\crystallized_floe\cyclone'
-dt = 0.001      
-output_directory = 'test_output_data'
-time_average_data = True
-coordnum_gif = True
-final_floes = True
-fsd = True
+# backend stuff
+import matplotlib
+matplotlib.use('Agg')
 
-# open datasets
-fpath_a = os.path.join(base_path, 'atoms.nc')
-fpath_b = os.path.join(base_path, 'bonds.nc')
-ds_a = xr.open_dataset(fpath_a)
-ds_b = nc.Dataset(fpath_b, 'r')
-
-# define/get some arrays
-n_atoms = ds_a.attrs['number_of_atoms'].item()
 
 # massive bond function to get bond stuff
 def process_bond_file(ds_b, num_atoms):
@@ -197,7 +187,7 @@ def create_atom_positions_animation(ds, output_directory, coordnums_df, frame_sk
 
     frame_indices = range(0, len(ds['timestep']), frame_skip_value)
 
-    # Create the animation
+    # create animation
     ani = FuncAnimation(
         fig,
         update,
@@ -205,11 +195,9 @@ def create_atom_positions_animation(ds, output_directory, coordnums_df, frame_sk
         blit=False
     )
 
-    # Ensure the output directory exists
+    # save gif
     os.makedirs(output_directory, exist_ok=True)
     fpath = os.path.join(output_directory, 'coordnum.gif')
-
-    # Save the animation as a GIF
     ani.save(fpath, writer='Pillow', fps=2)
 
 
@@ -242,74 +230,90 @@ def plot_fsd(component_sizes, output_directory):
     plt.savefig(outpath, dpi = 300)
     plt.close()
 
+def plot_final_floes(t, ax, ds, labels, component_sizes):
+    ax.clear()  # Clear the previous frame
+    # TODO modify dump2netcdf to make these attributes of the data
+    x_min = ds['x'].min().values
+    x_max = ds['x'].max().values
+    y_min = ds['y'].min().values
+    y_max = ds['y'].max().values
+    padding = 5  
 
-# # get bond data
-# if final_floes or time_average_data or coordnum_gif or fsd: # want to run if any is true
-#     nbonds, bond_force, final_graph, coordination_numbers_df = process_bond_file(ds_b, n_atoms)
+    ax.set_xlim(x_min - padding, x_max + padding)
+    ax.set_ylim(y_min - padding, y_max + padding)
+    ax.set_aspect('equal', 'box')
+    ax.grid()
 
-# # can now close bond dataset 
-# ds_b.close()
+    # Determine the largest fragment by size
+    largest_frag_id = np.argmax(component_sizes)
 
-# # make atom gif
-# if coordnum_gif: 
-#     create_atom_positions_animation(ds_a, output_directory, coordination_numbers_df, frame_skip_value=5) 
+    # Map atom IDs to fragment IDs
+    atom_ids = ds['id'].values
+    # Ensure atom_ids are zero-based indices matching the graph nodes
+    # If atom_ids are not zero-based or do not correspond to node indices, adjust accordingly
+    atom_to_fragment = dict(zip(atom_ids, labels))
 
-# if time_average_data:
-#     time = ds_a['timestep'].values*dt
+    # Fetch paired colors and prepare to assign them randomly
+    tab20_colors = plt.get_cmap('Paired').colors
+    random_colors = random.choices(tab20_colors, k=number_of_connected_components)
 
-#     # compute quantities
-#     ds_a['fmag'] = np.sqrt(ds_a['fx']**2 + ds_a['fy']**2 + ds_a['fz']**2)
-#     ds_a['vmag'] = np.sqrt(ds_a['vx']**2 + ds_a['vy']**2 + ds_a['vz']**2)
+    # Assign colors: black for single-atom fragments, blue for the largest fragment
+    fragment_colors = {}
+    for frag_id in range(number_of_connected_components):
+        size = component_sizes[frag_id]
+        if size == 1:
+            fragment_colors[frag_id] = (0, 0, 0, 1)  # black for single-atom fragments
+        elif frag_id == largest_frag_id:
+            fragment_colors[frag_id] = 'b'  # color large fragment blue
+        else:
+            fragment_colors[frag_id] = random_colors[frag_id]
 
-#     avg_sxy = ds_a['c_stress[4]'].mean(dim='id')
-#     avg_vmag = ds_a['vmag'].mean(dim='id')
-#     avg_fmag = ds_a['fmag'].mean(dim='id')
+    # Get positions and radii for all atoms at timestep t
+    x0 = ds['x'].isel(timestep=t).values
+    y0 = ds['y'].isel(timestep=t).values
+    radius0 = ds['radius'].isel(timestep=t).values
 
-#     # make array of time averaged quantities to loop plots
-#     time_avg_quantities = [avg_sxy, avg_fmag, avg_vmag, nbonds, bond_force]
-#     units = ['[Pa]', '[N]', '[m/s]', '[#]', '[N]']
-#     titles = [r'$\overline{\sigma_{xy}}$', r'$|\overline{\textbf{F}_a}|$', r'$|\overline{\textbf{v}}|$', '# bonds', r'$|\overline{\textbf{F}_b}|$']
-#     output_names = ['shear_stress.png', 'a_fmag.png', 'vmag.png', 'nbonds.png', 'b_fmag.png']
-#     colors = ['r', 'indigo', 'b', 'tab:orange', 'hotpink']
-
-#     for i in range(5):
-#         plot_and_save_quantity(time, time_avg_quantities[i], units[i], titles[i], colors[i], output_directory, output_names[i])
-
-# # now close atom dataset as we will no longer use
-# ds_a.close()
-
-# if fsd:
-#     number_of_connected_components, labels, component_sizes = get_bond_fsd_from_graph(final_graph)
-#     plot_fsd(component_sizes, output_directory)
+    # Create a circle for each atom and add to the axes
+    for idx, atom_id in enumerate(atom_ids):
+        initial_x = x0[idx]
+        initial_y = y0[idx]
+        radius = radius0[idx]
+        frag_id = atom_to_fragment.get(atom_id)
+        if frag_id is not None:
+            col = fragment_colors[frag_id]
+        else:
+            col = (0.5, 0.5, 0.5, 1)  # color unbonded particles black
+        circle = Circle((initial_x, initial_y), radius, color=col, alpha=0.5)
+        ax.add_patch(circle)
 
 
-# add main function to create figures based on input from bash file
+# add main function to create figures from terminal
 if __name__ == '__main__':
     # Interactive inputs
     base_path = input(
-        "Enter base path (default: 'c:\\Users\\arlenlex\\Documents\\liggghts_data\\dynamic_forcing\\crystallized_floe\\cyclone'): "
+        "Enter base path (default: '/mnt/c/Users/arlenlex/Documents/liggghts_data/dynamic_forcing/crystallized_floe/cyclone'): "
     )
     if not base_path:
-        base_path = r'c:\Users\arlenlex\Documents\liggghts_data\dynamic_forcing\crystallized_floe\cyclone'
+        base_path = r'/mnt/c/Users/arlenlex/Documents/liggghts_data/dynamic_forcing/crystallized_floe/cyclone'
 
-    dt_input = input("Enter dt (default: 0.001): ")
-    dt = float(dt_input) if dt_input else 0.001
+    dt_input = input("Enter dt (default: 0.0008): ")
+    dt = float(dt_input) if dt_input else 0.0008
 
-    output_directory = input("Enter output directory (default: 'test_output_data'): ")
+    output_directory = input("Enter output directory (default: '/mnt/c/Users/arlenlex/Documents/liggghts_data/dynamic_forcing/crystallized_floe/cyclone'): ")
     if not output_directory:
-        output_directory = 'test_output_data'
+        output_directory = '/mnt/c/Users/arlenlex/Documents/liggghts_data/dynamic_forcing/crystallized_floe/cyclone'
 
-    time_average_data_input = input("Time average data? (True/False, default: True): ")
-    time_average_data = time_average_data_input.lower() == 'true' if time_average_data_input else True
+    time_average_data_input = input("Time average data? (Y/N, default: Y): ")
+    time_average_data = time_average_data_input.lower() == 'y' if time_average_data_input else True
 
-    coordnum_gif_input = input("Create coordination number GIF? (True/False, default: True): ")
-    coordnum_gif = coordnum_gif_input.lower() == 'true' if coordnum_gif_input else True
+    coordnum_gif_input = input("Create coordination number GIF? (Y/N, default: Y): ")
+    coordnum_gif = coordnum_gif_input.lower() == 'y' if coordnum_gif_input else True
 
-    final_floes_input = input("Compute final floes? (True/False, default: True): ")
-    final_floes = final_floes_input.lower() == 'true' if final_floes_input else True
+    final_floes_input = input("Compute final floes? (Y/N, default: Y): ")
+    final_floes = final_floes_input.lower() == 'y' if final_floes_input else True
 
-    fsd_input = input("Compute FSD? (True/False, default: True): ")
-    fsd = fsd_input.lower() == 'true' if fsd_input else True
+    fsd_input = input("Compute FSD? (Y/N, default: Y): ")
+    fsd = fsd_input.lower() == 'y' if fsd_input else True
 
     # Open datasets
     fpath_a = os.path.join(base_path, 'atoms.nc')
@@ -323,6 +327,7 @@ if __name__ == '__main__':
     # Get bond data if any related option is True
     if final_floes or time_average_data or coordnum_gif or fsd:
         nbonds, bond_force, final_graph, coordination_numbers_df = process_bond_file(ds_b, n_atoms)
+        number_of_connected_components, labels, component_sizes = get_bond_fsd_from_graph(final_graph)
 
     # Close bond dataset
     ds_b.close()
@@ -330,6 +335,12 @@ if __name__ == '__main__':
     # Create coordination number animation if selected
     if coordnum_gif:
         create_atom_positions_animation(ds_a, output_directory, coordination_numbers_df, frame_skip_value=5)
+
+    if final_floes:
+        fig, ax = plt.subplots(figsize=(8, 8))
+        plot_final_floes(-1, ax, ds_a, labels, component_sizes)
+        outpath = os.path.join(output_directory, 'final_floes.png')
+        plt.savefig(outpath, dpi = 300)
 
     # Compute and plot time-averaged data if selected
     if time_average_data:
@@ -346,8 +357,8 @@ if __name__ == '__main__':
         # Prepare data for plotting
         time_avg_quantities = [avg_sxy, avg_fmag, avg_vmag, nbonds, bond_force]
         units = ['[Pa]', '[N]', '[m/s]', '[#]', '[N]']
-        titles = [r'$\overline{\sigma_{xy}}$', r'$|\overline{\textbf{F}_a}|$', r'$|\overline{\textbf{v}}|$',
-                  '# bonds', r'$|\overline{\textbf{F}_b}|$']
+        titles = [r'$\overline{\sigma_{xy}}$', r'$|\overline{\bf{F}_a}|$', r'$|\overline{\bf{v}}|$',
+                  '# bonds', r'$|\overline{\bf{F}_b}|$']
         output_names = ['shear_stress.png', 'a_fmag.png', 'vmag.png', 'nbonds.png', 'b_fmag.png']
         colors = ['r', 'indigo', 'b', 'tab:orange', 'hotpink']
 
@@ -361,5 +372,4 @@ if __name__ == '__main__':
 
     # Compute and plot FSD if selected
     if fsd:
-        number_of_connected_components, labels, component_sizes = get_bond_fsd_from_graph(final_graph)
         plot_fsd(component_sizes, output_directory)
