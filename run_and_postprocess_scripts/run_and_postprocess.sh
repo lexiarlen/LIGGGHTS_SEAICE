@@ -19,12 +19,13 @@ sim_folder="$base_path/$rel_sim_folder"
 # Ask for the script name
 read -p "Enter the LIGGGHTS script name (e.g., in.shear): " script_name
 
+# Ask for number of processors
+read -p "Enter the number of processors: " num_processors
+
 # Ask for the column_names (use default if none provided)
 read -p "Enter the bond dump variable names (press Enter to use default): " column_names
 
-# Ask for directory of where to save the simulation data
-read -p "Enter windows file path for where to save the data (from c/Users/arlenlex): " fpath
-output_dir="/mnt/c/Users/arlenlex/$fpath"
+output_dir="/mnt/c/Users/arlenlex/Documents/liggghts_data/$rel_sim_folder"
 
 # Change to the simulation folder
 cd "$sim_folder" || { echo "Simulation folder not found at $sim_folder!"; exit 1; }
@@ -36,7 +37,7 @@ if [ -d "post" ]; then
 fi
 
 # Run the LIGGGHTS script
-mpirun -np 1 /usr/local/bin/liggghts -in "$script_name"
+mpirun --bind-to core -np $num_processors /usr/local/bin/liggghts -in "$script_name"
 
 # # Make post writeable
 # chmod -R +w "$sim_folder/post"

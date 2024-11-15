@@ -15,6 +15,7 @@ def process_atom_dump_file(filepath: os.PathLike):
     # Extract specific information from the lines
     timestep = int(header_lines[1])
     number_of_atoms = int(header_lines[3])
+    #xlim = (header_lines[5].split()).astype(int)
     column_names = header_lines[8].split()[2:]  # Assumes the 9th line has the relevant data
 
     # read into pandas dataframe
@@ -43,7 +44,6 @@ def process_bond_dump_file(filepath: os.PathLike, column_names=None):
 
     # Extract specific information from the lines
     timestep = int(header_lines[1])
-    number_of_bonds = int(header_lines[3])
     if not column_names:
         column_names = 'batom1 batom2 bbondbroken bforceX bforceY bforceZ'
     column_names = column_names.split()
@@ -51,9 +51,15 @@ def process_bond_dump_file(filepath: os.PathLike, column_names=None):
     # read into pandas dataframe
     df = pd.read_csv(filepath, sep=r'\s+', skiprows=9, names=column_names)
 
+    # delete rows where bbondstatus is 1
+    df = df[df['bbondbroken'] != 1]
+
+    # delete the bond status column
+    df.drop('bbondbroken', axis=1, inplace=True)
+
     # convert to xarray, add timestep dim and attributes 
     ds = df.to_xarray()
-    ds = ds.assign_attrs(number_of_bonds=number_of_bonds)
+    ds = ds.assign_attrs(number_of_bonds=len(df))
     ds = ds.assign_attrs(timestep=timestep)
     return ds
 
