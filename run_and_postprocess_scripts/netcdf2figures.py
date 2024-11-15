@@ -200,6 +200,70 @@ def create_atom_positions_animation(ds, output_directory, coordnums_df, frame_sk
     fpath = os.path.join(output_directory, 'coordnum.gif')
     ani.save(fpath, writer='Pillow', fps=2)
 
+def plot_initial_coord_nums(ds, output_directory, coordnums_df):
+    """
+    Plots the atom positions at the first timestep, colored by coordination numbers.
+
+    Parameters:
+        ds (xarray.Dataset): Dataset of atom states.
+        output_directory (str): Directory where the plot should be saved.
+        coordination_numbers_df (pd.DataFrame): DataFrame containing coordination numbers for each atom at each timestep.
+
+    Returns:
+        None (saves a plot to the output directory).
+    """
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+
+    # Get plot limits
+    x_min = ds['x'].min().values
+    x_max = ds['x'].max().values
+    y_min = ds['y'].min().values
+    y_max = ds['y'].max().values
+    padding = 5  
+
+    ax.set_xlim(x_min - padding, x_max + padding)
+    ax.set_ylim(y_min - padding, y_max + padding)
+    ax.set_aspect('equal', 'box')
+    ax.grid()
+
+    # Atom IDs and initial positions
+    atom_ids = ds['id'].values
+    x0 = ds['x'].isel(timestep=0).values  
+    y0 = ds['y'].isel(timestep=0).values  
+    radius0 = ds['radius'].isel(timestep=0).values  
+
+    # Coordination numbers at the first timestep
+    coord_nums = coordination_numbers_df.iloc[:, 0].values  # Assuming columns are timesteps
+
+    # Set up colormap and normalization
+    cmap = cm.jet
+    max_coord_num = coord_nums.max()
+    norm = mcolors.Normalize(vmin=0, vmax=max_coord_num)
+    sm = cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    cbar = plt.colorbar(sm, ax=ax, shrink=0.8)
+    cbar.set_label('Coordination Number')
+
+    # Plot each atom as a circle colored by coordination number
+    for idx in range(len(atom_ids)):
+        x = x0[idx]
+        y = y0[idx]
+        radius = radius0[idx]
+        coord_num = coord_nums[idx]
+        color = cmap(norm(coord_num))
+
+        circle = Circle((x, y), radius, alpha=0.5, color=color)
+        ax.add_patch(circle)
+
+    timestep_value = ds['timestep'].values[0]
+    ax.set_title(f'Time = {timestep_value} s')
+
+    # Save the figure
+    os.makedirs(output_directory, exist_ok=True)
+    fpath = os.path.join(output_directory, 'coordnum_first_timestep.png')
+    plt.savefig(fpath, dpi=300)
+    plt.close()
 
 # save figures for all time averaged quantities
 def plot_and_save_quantity(x, y, units, title, color, output_directory, output_name):
@@ -309,6 +373,9 @@ if __name__ == '__main__':
     coordnum_gif_input = input("Create coordination number GIF? (Y/N, default: Y): ")
     coordnum_gif = coordnum_gif_input.lower() == 'y' if coordnum_gif_input else True
 
+    coordnum_initial_input = input("Plot the initial coordination numbers? (Y/N, default: Y): ")
+    coordnum_initial = coordnum_initial_input.lower() == 'y' if coordnum_initial_input else True
+
     final_floes_input = input("Compute final floes? (Y/N, default: Y): ")
     final_floes = final_floes_input.lower() == 'y' if final_floes_input else True
 
@@ -335,6 +402,9 @@ if __name__ == '__main__':
     # Create coordination number animation if selected
     if coordnum_gif:
         create_atom_positions_animation(ds_a, output_directory, coordination_numbers_df, frame_skip_value=5)
+
+    if coordnum_initial:
+        plot_initial_coord_nums(ds_a, output_directory, coordination_numbers_df)
 
     if final_floes:
         fig, ax = plt.subplots(figsize=(8, 8))

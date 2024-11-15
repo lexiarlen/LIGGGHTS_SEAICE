@@ -92,6 +92,23 @@ def main():
     out_dir = args.output_directory
     column_names = args.column_names
 
+    # Check if post_directory exists and is a directory
+    if not os.path.isdir(post_dir):
+        print(f"Error: The post directory '{post_dir}' does not exist or is not a directory.")
+        return
+
+    # Check if post_directory contains expected files
+    atom_files = sorted(glob.glob(os.path.join(post_dir, 'dump*.liggghts')))
+    bond_files = sorted(glob.glob(os.path.join(post_dir, 'bfc*.bond')))
+
+    if not atom_files:
+        print(f"Error: No atom dump files (dump*.liggghts) found in the post directory '{post_dir}'.")
+        return
+
+    if not bond_files:
+        print(f"Error: No bond dump files (bfc*.bond) found in the post directory '{post_dir}'.")
+        return
+
     # Process atom data
     atom_output_path = os.path.join(out_dir, 'atoms.nc')
     get_atom_ds(post_dir, atom_output_path)
