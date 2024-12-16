@@ -392,7 +392,7 @@ if __name__ == '__main__':
     fsd = fsd_input.lower() == 'y' if fsd_input else False
 
     stress_strain_input = input("Plot stress strain curve? (Y/N, default: N): ")
-    stress_strain = stress_strain_input.lower() == 'y' if fsd_input else False
+    stress_strain = stress_strain_input.lower() == 'y' if stress_strain_input else False
 
     # Open datasets
     fpath_a = os.path.join(base_path, 'atoms.nc')
@@ -435,15 +435,16 @@ if __name__ == '__main__':
         avg_sxy = ds_a['c_stress[4]'].mean(dim='id')
         avg_vmag = ds_a['vmag'].mean(dim='id')
         avg_fmag = ds_a['fmag'].mean(dim='id')
+        avg_co = coordination_numbers_df.mean(axis = 1)
         ex_ydisplacement = ds_a['y'].isel(id = 100).values - ds_a['y'].isel(timestep = 0, id = 100).values
 
         # Prepare data for plotting
-        time_avg_quantities = [avg_sxy, avg_fmag, avg_vmag, nbonds, bond_force, ex_ydisplacement]#, avg_vx, avg_vy, avg_fx, avg_fy, avg_fz]
-        units = ['[Pa]', '[N]', '[m/s]', '[#]', '[N]', 'm']
+        time_avg_quantities = [avg_sxy, avg_fmag, avg_vmag, nbonds, bond_force, ex_ydisplacement, avg_co]
+        units = ['[Pa]', '[N]', '[m/s]', '[#]', '[N]', '[m]', '[#]']
         titles = [r'$\overline{\sigma_{xy}}$', r'$|\overline{\bf{F}_a}|$', r'$|\overline{\bf{v}}|$',
-                  '# bonds', r'$|\overline{\bf{F}_b}|$', r'Atom 100 y displacement']
-        output_names = ['shear_stress.jpg', 'a_fmag.jpg', 'vmag.jpg', 'nbonds.jpg', 'b_fmag.jpg', 'ydisp.jpg']
-        colors = ['r', 'indigo', 'b', 'tab:orange', 'hotpink', 'navy']
+                  '# bonds', r'$|\overline{\bf{F}_b}|$', r'Atom 100 y displacement', r'$\bar{Co #}$']
+        output_names = ['shear_stress.jpg', 'a_fmag.jpg', 'vmag.jpg', 'nbonds.jpg', 'b_fmag.jpg', 'ydisp.jpg', 'avg_coordnum.jpg']
+        colors = ['r', 'indigo', 'b', 'tab:orange', 'hotpink', 'navy', 'g']
 
         # Plot and save each quantity
         for i in range(len(time_avg_quantities)):
@@ -462,6 +463,6 @@ if __name__ == '__main__':
         fpath_strain = os.path.join(base_path, 'strain.nc')
         ds_stress = xr.open_dataset(fpath_stress)
         ds_strain = xr.open_dataset(fpath_strain)
-        plot_stress_strain(ds_stress, ds_strain)
+        plot_stress_strain(ds_stress, ds_strain, output_directory)
         ds_stress.close()
         ds_strain.close()

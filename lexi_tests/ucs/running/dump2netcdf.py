@@ -236,7 +236,7 @@ def main():
     # Process stress & strain from meshes
     stress_output_path = os.path.join(out_dir, 'stress.nc')
     get_axial_stress(post_dir, stress_output_path)
-    strain_output_path = os.path.join(out_dir, 'stress.nc')
+    strain_output_path = os.path.join(out_dir, 'strain.nc')
     get_axial_strain(post_dir, strain_output_path)
 
 if __name__ == '__main__':
