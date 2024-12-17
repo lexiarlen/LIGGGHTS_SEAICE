@@ -36,9 +36,9 @@ variable bond_skin               equal (1.1)*${lattice_spacing} # make sure all 
 
 # Numerics & output
 variable dt                      equal 5e-5                # really low to resolve high elastic modulus
-variable run_time                equal 60                   # [s] runtime
+variable run_time                equal 150                   # [s] runtime
 variable num_timesteps           equal ${run_time}/${dt}   # 600,000 in this case
-variable dump_freq               equal 4000
+variable dump_freq               equal 5000
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
@@ -132,7 +132,7 @@ dump bondforcechain all local ${dump_freq} post/bfc*.bond &
     c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6]  
 dump_modify bondforcechain pad 10 label 'BONDS' first yes
 
-dump meshdump_top all mesh/stl ${dump_freq} post/mesh_top*.stl #mesh_top
+dump meshdump_top all mesh/stl ${dump_freq} post/mesh_top*.stl mesh_top
 dump_modify meshdump_top pad 10                              # pad the timesteps with zeros
 
 dump meshdump_bot all mesh/stl ${dump_freq} post/mesh_bot*.stl mesh_bot

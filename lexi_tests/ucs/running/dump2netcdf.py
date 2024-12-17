@@ -136,12 +136,13 @@ def get_avg_stress_from_mesh_file(filepath: os.PathLike):
     downward_cells_indices = y_coords == y_threshold
     downward_normal_stresses = normal_stress[downward_cells_indices]
 
+    # timestep
+    timestep = int((os.path.splitext(os.path.basename(filepath))[0])[10:])
     # compute mean ignoring zeros
     non_zero_stresses = downward_normal_stresses[downward_normal_stresses != 0]
     if non_zero_stresses.size == 0:
-        return 0.0  
+        return timestep, 0.0  
     average_downward_stress = non_zero_stresses.mean()
-    timestep = int((os.path.splitext(os.path.basename(filepath))[0])[10:])
     return timestep, average_downward_stress
 
 def get_axial_stress(directory_path: os.PathLike, output_path: os.PathLike):
@@ -238,9 +239,10 @@ def main():
     if os.path.isfile(stress_output_path):
         os.remove(stress_output_path)
     get_axial_stress(post_dir, stress_output_path)
+
+    strain_output_path = os.path.join(out_dir, 'strain.nc')
     if os.path.isfile(strain_output_path):
         os.remove(strain_output_path)
-    strain_output_path = os.path.join(out_dir, 'strain.nc')
     get_axial_strain(post_dir, strain_output_path)
 
 if __name__ == '__main__':

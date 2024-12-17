@@ -432,18 +432,18 @@ if __name__ == '__main__':
         ds_a['fmag'] = np.sqrt(ds_a['fx']**2 + ds_a['fy']**2 + ds_a['fz']**2)
         ds_a['vmag'] = np.sqrt(ds_a['vx']**2 + ds_a['vy']**2 + ds_a['vz']**2)
 
-        avg_sxy = ds_a['c_stress[4]'].mean(dim='id')
+        avg_syy = ds_a['c_stress[2]'].mean(dim='id')
         avg_vmag = ds_a['vmag'].mean(dim='id')
         avg_fmag = ds_a['fmag'].mean(dim='id')
         avg_co = coordination_numbers_df.mean(axis = 0)
         ex_ydisplacement = ds_a['y'].isel(id = 100).values - ds_a['y'].isel(timestep = 0, id = 100).values
 
         # Prepare data for plotting
-        time_avg_quantities = [avg_sxy, avg_fmag, avg_vmag, nbonds, bond_force, ex_ydisplacement, avg_co]
+        time_avg_quantities = [avg_syy, avg_fmag, avg_vmag, nbonds, bond_force, ex_ydisplacement, avg_co]
         units = ['[Pa]', '[N]', '[m/s]', '[#]', '[N]', '[m]', '[#]']
-        titles = [r'$\overline{\sigma_{xy}}$', r'$|\overline{\bf{F}_a}|$', r'$|\overline{\bf{v}}|$',
+        titles = [r'$\overline{\sigma_{yy}}$', r'$|\overline{\bf{F}_a}|$', r'$|\overline{\bf{v}}|$',
                   '# bonds', r'$|\overline{\bf{F}_b}|$', r'Atom 100 y displacement', r'$\bar{Co}$ #']
-        output_names = ['shear_stress.jpg', 'a_fmag.jpg', 'vmag.jpg', 'nbonds.jpg', 'b_fmag.jpg', 'ydisp.jpg', 'avg_coordnum.jpg']
+        output_names = ['compressive_stress.jpg', 'a_fmag.jpg', 'vmag.jpg', 'nbonds.jpg', 'b_fmag.jpg', 'ydisp.jpg', 'avg_coordnum.jpg']
         colors = ['r', 'indigo', 'b', 'tab:orange', 'hotpink', 'navy', 'g']
 
         # Plot and save each quantity
