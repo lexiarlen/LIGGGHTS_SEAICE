@@ -60,8 +60,8 @@ $COLUMN_NAMES
 EOF
 
     # After run_and_postprocess.sh finishes, we have atoms.nc and bonds.nc in $OUTPUT_BASE/$sim_subdir
-    # Now run netcdf2figs.py with "Y" answers for all prompts.
-    # netcdf2figs.py asks for:
+    # Now run netcdf2figures.py with "Y" answers for all prompts.
+    # netcdf2figures.py asks for:
     #   1. Enter base path (from ...): we pass 'random/phi...' 
     #   2. Enter dt (default: 0.00005): we pass $DT or leave blank
     #   3. Enter output directory if different from base path: leave blank to use the same
@@ -75,11 +75,16 @@ EOF
     # If you want all figures, we just say Y to all steps. If you want different behavior,
     # adjust the sequence of inputs below.
 
-    yes Y | python3 "$SCRIPT_DIR/netcdf2figs.py" <<EOF2
+    python3 "$SCRIPT_DIR/netcdf2figures.py" <<EOF2
 random/$sim_subdir
 $DT
 
-
+Y
+Y
+Y
+Y
+Y
+Y
 EOF2
 
     echo "Finished processing $sim_subdir"
