@@ -1,0 +1,116 @@
+# Material Properties
+variable diameter                equal 0.02       # [m] particles diameter 
+variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
+variable bond_damp_val           equal 0.0        # [-] don't use bond damping
+variable rho_i                   equal 920.0      # [kg/m3] ice density
+variable elastic_modulus         equal 1.0e8      # [Pa]
+variable poissons_ratio          equal 0.3        # [-]
+variable normal_strength         equal 5.0e5      # [Pa] bond critical normal strength
+variable shear_strength          equal 5.0e5      # [Pa] bond critical shear strength 
+variable coeff_rest_pp           equal 0.1       # [-] particle particle
+variable friction_pp             equal 0.8        # [-] particle particle
+variable coeff_rest_pw           equal 0.1        # [-] particle wall
+variable friction_pw             equal 0.8        # [-] particle wall
+variable coeff_rest_ww           equal 0.1        # [-] wall wall
+variable friction_ww             equal 0.0        # [-] wall wall
+
+# Simulation Parameters
+variable phi                     equal 0.4        # [-] packing fraction
+variable l                       equal 1.0        # [m] sample height between "plates"
+variable strain_rate             equal 1e-3       # [1/s]
+
+# Derived Properties & Parameters
+variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
+variable cylinder_radius         equal ${l}*0.1
+variable cylinder_height         equal ${l}*0.5
+variable column_height_ini       equal ${l}*1.5
+variable top_plate_velocity      equal ${l}*${strain_rate}
+variable bond_skin               equal (1.05)*${diameter} 
+variable radius                  equal ${diameter}/2
+
+# Parameters for collapse
+variable coeff                  equal 1000*PI*(${radius}^2)*${rho_i}/1000 
+variable dragx                  atom ${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vx)
+variable dragy                  atom ${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vy)
+variable dragz                  atom ${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vz)
+
+# Numerics & output
+variable dt                      equal 1e-5                # really low to resolve high elastic modulus
+variable run_time                equal 1                   # [s] runtime
+variable num_timesteps           equal ${run_time}/${dt}   # 600,000 in this case
+variable dump_freq               equal 1000
+
+### ----------------------------------- build simulation ----------------------------------- ###
+
+# Preliminaries
+units si                                                                
+atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 12     
+atom_modify map array sort 0 0                                              
+newton off                                                              
+boundary m m m
+hard_particles yes
+processors * * *                        
+
+# Domain
+boundary f f f                                                           
+region domain block -1 1 -1 1 0 3 units box 
+create_box 2 domain
+region ins_region cylinder z 0 0 ${cylinder_radius} 0 ${column_height_ini} # cylinder centered at origin
+
+communicate single vel yes              # ghost particles are given position and velocity information
+neighbor 0.002 bin                        # skin distance to specify bin size for neighbor list generation
+neigh_modify delay 0                    # don't delay the generation of neighbor lists   
+
+# Bond style
+bond_style gran                                        # linear parallel bond
+
+# Contact style
+pair_style gran model hertz tangential history                           # Hertz-Mindlin
+pair_coeff * *                                                           # contact coeffs from material props not force field
+
+# Contact law
+fix m1 all property/global youngsModulus peratomtype ${elastic_modulus} ${elastic_modulus} # set the elastic modulus
+fix m2 all property/global poissonsRatio peratomtype ${poissons_ratio} ${poissons_ratio}  # set Poisson's ratio
+fix m3 all property/global coefficientRestitution peratomtypepair 2 ${coeff_rest_pp} ${coeff_rest_pw} ${coeff_rest_pw} ${coeff_rest_ww} 
+fix m4 all property/global coefficientFriction peratomtypepair 2 ${friction_pp} ${friction_pw} ${friction_pw} ${friction_ww} 
+
+# Set bond coefficients for a simple bond (no holes) with properties below; see Notion for more details 
+bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+
+# Insertion configuration
+fix pts1 all particletemplate/sphere 49979687 atom_type 1 density constant ${rho_i} radius constant ${radius}
+fix pdd1 all particledistribution/discrete 200237 1 pts1 1.0
+fix ins all insert/pack seed 123457 distributiontemplate pdd1 insert_every once overlapcheck yes volumefraction_region ${phi} region ins_region
+
+# Timestep & insertion
+timestep ${dt}                                                         
+run 0
+
+# Relaxation setup
+fix w_cyl all wall/gran model hertz tangential history primitive type 2 zcylinder ${cylinder_radius} 0 0
+fix bot_wall all wall/gran model hertz tangential history primitive type 2 zplane 0
+fix top_wall all wall/gran model hertz tangential history primitive type 2 zplane ${column_height_ini}
+
+fix int all nve/sphere
+fix gravi all gravity 10 vector 0 0 -1 # could add a drag force to make the relaxation quicker
+fix fdrag all addforce v_dragx v_dragy 0 #v_dragz
+
+# Dump setup
+dump dmp all custom ${dump_freq} post/dump*.liggghts id mass x y z vx vy vz fx fy fz radius #c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
+dump_modify dmp pad 10 sort id first yes                           # pad the timesteps with zeros
+
+thermo 20000                                             # set output frequency for output for screen
+thermo_style custom step numbonds atoms time dt                 # custom pringting to screen
+thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
+
+# run
+run 100000
+unfix gravi
+fix fdragz all addforce v_dragx v_dragy v_dragz
+run 150000
+
+# delete atoms above z > cylinder height
+region reg2delete cylinder z 0 0 ${cylinder_radius} ${cylinder_height} ${column_height_ini} 
+delete_atoms region reg2delete
+
+write_data packed_cylinder

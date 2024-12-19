@@ -1,0 +1,138 @@
+# Material Properties
+variable diameter                equal 0.02       # [m] particles diameter 
+variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
+variable bond_damp_val           equal 0.0        # [-] don't use bond damping
+variable rho_i                   equal 920.0      # [kg/m3] ice density
+variable elastic_modulus         equal 9.0e9      # [Pa]
+variable poissons_ratio          equal 0.3        # [-]
+variable normal_strength         equal 5.0e5      # [Pa] bond critical normal strength
+variable shear_strength          equal 5.0e5      # [Pa] bond critical shear strength 
+# variable coeff_rest_pp           equal 0.97       # [-] particle particle
+# variable friction_pp             equal 0.5        # [-] particle particle
+# variable coeff_rest_pw           equal 0.3        # [-] particle wall
+# variable friction_pw             equal 0.0        # [-] particle wall
+# variable coeff_rest_ww           equal 0.3        # [-] wall wall
+# variable friction_ww             equal 0.0        # [-] wall wall
+variable coeff_rest_pp           equal 0.3        # [-] particle particle
+variable mu                      equal 0.5        # [-] particle particle friction
+variable damping                 equal 100        # [kg/s]
+
+# Simulation Parameters
+variable phi                     equal 0.6        # [-] packing fraction
+variable l                       equal 1.0        # [m] sample height between "plates"
+variable strain_rate             equal 1e-3       # [1/s]
+
+# Derived Properties & Parameters
+variable k_n                     equal ${elastic_modulus}*${diameter}
+variable k_s                     equal ${k_n}/(2.0*(1.0+${poissons_ratio})) # shear stiffness assuming isotropy
+variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
+variable cylinder_radius         equal ${l}*0.2
+variable cylinder_height         equal ${l}*1.5
+variable top_plate_velocity      equal ${l}*${strain_rate}
+variable bond_skin               equal (1.05)*${diameter} 
+variable radius                  equal ${diameter}/2
+
+# Numerics & output
+variable dt                      equal 5e-7                # really low to resolve high elastic modulus
+variable run_time                equal 1                   # [s] runtime
+variable num_timesteps           equal ${run_time}/${dt}   # 600,000 in this case
+variable dump_freq               equal 1000
+
+### ----------------------------------- build simulation ----------------------------------- ###
+
+# Preliminaries
+units si                                                                
+atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 12     
+atom_modify map array sort 0 0                                              
+newton off                                                              
+boundary m m m
+hard_particles yes
+processors * * *                        
+
+# Domain
+boundary f f f                                                           
+region domain block -1 1 -1 1 0 3 units box 
+create_box 2 domain
+region ins_region cylinder z 0 0 ${cylinder_radius} 0 ${cylinder_height} # cylinder centered at origin
+
+communicate single vel yes              # ghost particles are given position and velocity information
+neighbor 0.1 bin                        # skin distance to specify bin size for neighbor list generation
+neigh_modify delay 0                    # don't delay the generation of neighbor lists   
+
+# Bond style
+bond_style gran                                        # linear parallel bond
+
+# Contact style
+pair_style 	gran model hooke/stiffness tangential history # hookean
+pair_coeff * *                                         # contact coeffs from material props not force field
+
+fix prop1 all property/global coefficientFriction peratomtypepair 2 ${mu} 0.0 0.0 0.0
+
+# normal spring stiffness
+fix prop2 all property/global kn peratomtypepair 2 ${k_n} ${k_n} ${k_n} ${k_n}
+
+# tangential spring stiffness
+fix prop3 all property/global kt peratomtypepair 2 ${k_s} ${k_s} ${k_s} ${k_s}
+
+# normal viscous loss
+fix prop4 all property/global gamman peratomtypepair 2 ${damping} ${damping} ${damping} ${damping}
+
+# tangential viscous loss
+fix prop5 all property/global gammat peratomtypepair 2 0 0 0 0
+
+# Set bond coefficients for a simple bond (no holes) with properties below; see Notion for more details 
+bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
+
+# Insertion configuration
+fix pts1 all particletemplate/sphere 49979687 atom_type 1 density constant ${rho_i} radius constant ${radius}
+fix pdd1 all particledistribution/discrete 200237 1 pts1 1.0
+fix ins all insert/pack seed 123457 distributiontemplate pdd1 insert_every once overlapcheck yes volumefraction_region ${phi} region ins_region #ntry_mc 10000
+
+# Timestep & insertion
+timestep ${dt}                                                         
+run 0
+
+
+fix w_cyl all wall/gran model hooke/stiffness tangential history primitive type 2 zcylinder ${cylinder_radius} 0 0
+fix z_wall all wall/gran model hooke/stiffness tangential history primitive type 2 zplane 0
+fix int all nve/sphere
+#fix gravi all gravity 9.81 vector 0 0 -1 # could add a drag force to make the relaxation quicker
+
+### ----------------------------------- bond grains ---------------------------------- ###
+ 
+# compute bc all property/local batom1 batom2 bbondbroken bforceX bforceY bforceZ batom1y batom2y 
+
+# fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # nevery itype jtype bondskin btype newperts
+
+# fix dtBond all check/timestep/bond 1 0.3                       # check the time step for the bond
+
+# run 1                                                          # bond grains
+
+# unfix dtBond                                                   # stop checking bond timestep (not doing anymore bonding)
+
+# fix_modify bondcr every 0                                      # do not create new bonds after this line
+
+### ----------------------------------- apply forces ---------------------------------- ###
+
+# variable initial_bonds      atom numbonds
+# variable bonds_thresh       equal floor(${initial_bonds}*0.5)
+
+#fix integrate all nve/sphere         # set the integrator such that moles, velocity, and energy are conserved 
+#compute stress all stress/atom pair
+
+### ----------------------------------- run & output ---------------------------------- ###
+
+dump dmp all custom ${dump_freq} post/dump*.liggghts id mass x y z vx vy vz fx fy fz radius #c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
+dump_modify dmp pad 10 sort id first yes                             # pad the timesteps with zeros
+
+thermo 20000                                             # set output frequency for output for screen
+thermo_style custom step numbonds atoms time dt                 # custom pringting to screen
+thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
+
+# configure the bond dumping
+# dump bondforcechain all local ${dump_freq} post/bfc*.bond &
+#     c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6] c_bc[7] c_bc[8] 
+# dump_modify bondforcechain pad 10 label 'BONDS' first yes
+
+
+run ${num_timesteps}
