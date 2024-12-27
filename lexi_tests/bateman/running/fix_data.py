@@ -124,7 +124,7 @@ Atoms
 
     # Generate the atoms section
     for index, row in df.iterrows():
-        atom_line = f"{index + 1} 1 {row['x']} {row['y']} {row['z']} {row['d']} {row['density']} 1"
+        atom_line = f"{index} 1 {row['x']} {row['y']} {row['z']} {row['d']} {row['density']} 1"
         output_lines.append(atom_line)
 
     # Pseudo bond info; add 6 extra atoms and install bond between them to implicitly set max bonds/atom
