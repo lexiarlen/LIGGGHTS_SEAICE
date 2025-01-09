@@ -26,11 +26,10 @@ variable cylinder_height         equal ${l}*1.5
 variable bot_plate_height        equal ${l}*0.25
 variable top_plate_height        equal ${l}*1.25
 variable top_plate_velocity      equal -${l}*${strain_rate}
-variable bond_skin               equal (1.001)*${diameter} # 1% of the diameter as I think this is what bateman did
 
 # Numerics & output
 variable dt                      equal 5e-7                # really low to resolve high elastic modulus
-variable run_time                equal 0.04                   # [s] runtime
+variable run_time                equal 0.07                # [s] runtime
 variable num_timesteps           equal ${run_time}/${dt}   # 600,000 in this case
 variable dump_freq               equal 50
 
@@ -47,7 +46,7 @@ hard_particles yes
 
 processors 1 1 4                                                        # ligghts allocates processors for x,y,z '*'
 
-read_restart restarts/dense_sample_fixed_12_bonds.restart
+read_restart restarts/dense1.restart
 
 communicate single vel yes              # ghost particles are given position and velocity information
 neighbor 0.002 bin                      # diameter/10 is a good threshold

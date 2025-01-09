@@ -31,7 +31,7 @@ variable column_height_ini       equal ${cylinder_height}*2
 variable coeff                  equal PI*(${radius}^2)*${rho_i}
 variable dragx                  atom ${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vx)
 variable dragy                  atom ${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vy)
-variable dragz                  atom 0.5*${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vz)
+variable dragz                  atom 0.25*${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vz)
 
 # Numerics & output
 variable dt                      equal 1e-5                # really low to resolve high elastic modulus
@@ -79,7 +79,7 @@ bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_da
 # Insertion configuration
 fix pts1 all particletemplate/sphere 49979687 atom_type 1 density constant ${rho_i} radius constant ${radius}
 fix pdd1 all particledistribution/discrete 200237 1 pts1 1.0
-fix ins all insert/pack seed 123457 distributiontemplate pdd1 insert_every once overlapcheck yes volumefraction_region ${phi} region ins_region
+fix ins all insert/pack seed 133711 distributiontemplate pdd1 insert_every once overlapcheck yes volumefraction_region ${phi} region ins_region
 
 # Timestep & insertion
 timestep ${dt}                                                         
@@ -95,7 +95,7 @@ fix gravi all gravity 10 vector 0 0 -1 # could add a drag force to make the rela
 fix fdrag all addforce v_dragx v_dragy 0 # added x-y drag to accelerate packing
 
 # Dump setup
-dump dmp all custom ${dump_freq} post/dump*.liggghts id mass x y z vx vy vz fx fy fz radius #c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
+dump dmp all custom ${dump_freq} post_loose/dump*.liggghts id mass x y z vx vy vz fx fy fz radius #c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
 dump_modify dmp pad 10 sort id first yes                           # pad the timesteps with zeros
 
 thermo 20000                                             # set output frequency for output for screen
@@ -113,4 +113,4 @@ run 480000
 region reg2delete cylinder z 0 0 ${cylinder_radius} ${cylinder_height} ${column_height_ini} 
 delete_atoms region reg2delete
 
-write_data loose_sample.data
+write_data exps/loose.data

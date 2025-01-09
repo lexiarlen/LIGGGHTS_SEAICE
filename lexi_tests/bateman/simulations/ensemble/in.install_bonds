@@ -14,7 +14,6 @@ variable damping                 equal 100        # [kg/s]
 # Simulation Parameters
 variable phi                     equal 0.6        # [-] packing fraction
 variable l                       equal 1.0        # [m] sample height between "plates"
-variable strain_rate             equal 1e-3       # [1/s]
 
 # Derived Properties & Parameters
 variable radius                  equal ${diameter}/2
@@ -25,8 +24,7 @@ variable cylinder_radius         equal ${l}*0.2
 variable cylinder_height         equal ${l}*1.5 
 variable bot_plate_height        equal ${l}*0.25
 variable top_plate_height        equal ${l}*1.25
-variable top_plate_velocity      equal -${l}*${strain_rate}
-variable bond_skin               equal (1.001)*${diameter} # 1% of the diameter as I think this is what bateman did
+variable bond_skin               equal (1.001)*${diameter} # 1% of the max diameter; should this be of the min diameter for polydisperse?
 
 # Numerics & output
 variable dt                      equal 5e-7                # really low to resolve high elastic modulus
@@ -35,7 +33,6 @@ variable num_timesteps           equal ${run_time}/${dt}   # 600,000 in this cas
 variable dump_freq               equal 50
 
 ### ----------------------------------- build simulation ----------------------------------- ###
-
 
 # Preliminaries
 units si                                                                # SI units

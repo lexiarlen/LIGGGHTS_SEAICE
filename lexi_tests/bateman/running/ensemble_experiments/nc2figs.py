@@ -15,6 +15,7 @@ import netCDF4 as nc
 from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 import random
+import argparse
 
 # backend stuff
 import matplotlib
@@ -204,46 +205,63 @@ def plot_final_floes(t, ax, ds, labels, component_sizes):
         circle = Circle((initial_x, initial_y), radius, color=col, alpha=0.5)
         ax.add_patch(circle)
 
-def plot_force_on_top_plate(ds_top_plate, dt, output_directory):
-    fig = plt.figure()
+def plot_force_and_stress_strain_on_top_plate(ds_top_plate, dt, output_directory, l = 1,  v_top = 1e-3):
+    fig1 = plt.figure()
     force = ds_top_plate['fz'].sum(dim='id').values
-    plt.plot(ds_top_plate['timestep'].values*dt, force, color = 'maroon')
+    time = ds_top_plate['timestep'].values*dt
+    plt.plot(time, force, color = 'maroon')
     plt.ylabel(r'$F_z$ [N]')
     plt.xlabel('Time [s]')
     plt.grid()
     outpath = os.path.join(output_directory, 'F_on_top_plate.jpg')
     plt.savefig(outpath, dpi = 300)
     plt.close()
-    return force
+
+    fig2 = plt.figure()
+    
+
+    stress = force / (np.pi * (0.2*l)**2)
+    strain = v_top * time / l
+    plt.plot(strain, stress, color = 'navy')
+    plt.ylabel(r'Axial Stress [Pa]')
+    plt.xlabel('Axial Strain [-]')
+    plt.grid()
+    outpath = os.path.join(output_directory, 'stress_v_strain.jpg')
+    plt.savefig(outpath, dpi = 300)
+    plt.close()
+    
+    max_stress = np.max(stress)
+    print(f'max stress = {np.round(max_stress*1e-6, decimals = 2)} MPa')
+    max_stress_idx = np.argmax(stress)
+    strain_at_max_stress = strain[max_stress_idx]
+    df = pd.DataFrame({'time': time, 'force': force, 'stress': stress, 'strain': strain})
+    ds = xr.Dataset.from_dataframe(df)
+    ds = ds.set_coords('time')
+    ds.attrs['effective elastic modulus'] = max_stress/strain_at_max_stress
+    print(f'effective elastic modulus = {np.round(max_stress/strain_at_max_stress*1e-9, decimals = 2)} GPa')
+    ds.to_netcdf(os.path.join(output_directory, 'stress_strain_data.nc'))
+
 
 
 # add main function to create figures from terminal
 if __name__ == '__main__':
-    # Interactive inputs
-    rel_path = input(
-        "Enter base path (from '/mnt/c/Users/arlenlex/Documents/liggghts_data/bateman/simulations'): "
-    )
-    base_path = os.path.join(r'/mnt/c/Users/arlenlex/Documents/liggghts_data/bateman/simulations', rel_path)
+    # Parse command-line arguments
+    parser = argparse.ArgumentParser(description="Generate figures from LIGGGHTS simulation NetCDF outputs.")
+    parser.add_argument("--output-dir", required=True, help="Path to the output directory containing NetCDF files.")
+    parser.add_argument("--dt", type=float, default=0.0000005, help="Timestep for stress-strain calculations.")
+    args = parser.parse_args()
 
-    dt_input = input("Enter dt (default: 0.0000005): ")
-    dt = float(dt_input) if dt_input else 0.0000005
+    # Extract arguments
+    output_directory = args.output_dir
+    dt = args.dt
 
-    output_directory = input("Enter output directory if different from base path: ")
-    if not output_directory:
-        output_directory = base_path
-
-    coordnum_initial_input = input("Plot the final coordination numbers? (Y/N, default: N): ")
-    coordnum_initial = coordnum_initial_input.lower() == 'y' if coordnum_initial_input else False
-
-    final_floes_input = input("Compute final floes? (Y/N, default: N): ")
-    final_floes = final_floes_input.lower() == 'y' if final_floes_input else False
-
-    stress_strain_input = input("Plot force on top plate? (Y/N, default: N): ")
-    stress_strain = stress_strain_input.lower() == 'y' if stress_strain_input else False
+    coordnum_initial = True
+    final_floes = True
+    stress_strain = True
 
     # Open datasets
-    fpath_a = os.path.join(base_path, 'all_atoms_final.nc')
-    fpath_b = os.path.join(base_path, 'bonds_final.nc')
+    fpath_a = os.path.join(output_directory, 'all_atoms_final.nc')
+    fpath_b = os.path.join(output_directory, 'bonds_final.nc')
     ds_a = xr.open_dataset(fpath_a)
     ds_b = xr.open_dataset(fpath_b)
 
@@ -269,8 +287,6 @@ if __name__ == '__main__':
         plt.close()
 
     if stress_strain:
-        ds_top_plate = xr.open_dataset(os.path.join(base_path, 'atoms_plate.nc'))
-        force = plot_force_on_top_plate(ds_top_plate, dt, output_directory)
+        ds_top_plate = xr.open_dataset(os.path.join(output_directory, 'atoms_plate.nc'))
+        plot_force_and_stress_strain_on_top_plate(ds_top_plate, dt, output_directory, l = 1,  v_top = 1e-3)
         ds_top_plate.close()
-        np.save(os.path.join(output_directory, 'force_on_top_plate.npy'), force)
-
