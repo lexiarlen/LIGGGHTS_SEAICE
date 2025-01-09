@@ -91,9 +91,13 @@ def main():
     x0 = xhi/2
     y0 = yhi/2
     z0 = 0.0
+    z01 = zhi/2
 
     xtri = d * np.cos(60*np.pi/180) 
     ytri = d * np.sin(60*np.pi/180)
+
+    
+
 
     # (2) Fix Overlaps
 
@@ -107,9 +111,9 @@ def main():
     # (3) Build new .data content
     header_info = f"""header line input data
 
-{num_atoms + 7} atoms
+{num_atoms + 14} atoms
 1 atom types
-6 bonds
+12 bonds
 1 bond types
 
 {xlo} {xhi} xlo xhi
@@ -127,7 +131,7 @@ Atoms
         atom_line = f"{index} 1 {row['x']} {row['y']} {row['z']} {row['d']} {row['density']} 1"
         output_lines.append(atom_line)
 
-    # Pseudo bond info; add 6 extra atoms and install bond between them to implicitly set max bonds/atom
+    # Pseudo bond info; add 14 extra atoms and install bond between them to implicitly set max bonds/atom
     bond_info = f"""{num_atoms + 1} 1 {x0} {y0} {z0} {d} {density} 1
 {num_atoms + 2} 1 {x0 + d} {y0} {z0} {d} {density} 1
 {num_atoms + 3} 1 {x0 + xtri} {y0 + ytri} {z0} {d} {density} 1
@@ -135,6 +139,13 @@ Atoms
 {num_atoms + 5} 1 {x0 - d} {y0} {z0} {d} {density} 1
 {num_atoms + 6} 1 {x0 - xtri} {y0 - ytri} {z0} {d} {density} 1
 {num_atoms + 7} 1 {x0 + xtri} {y0 - ytri} {z0} {d} {density} 1
+{num_atoms + 8} 1 {x0 + d} {y0} {z01} {d} {density} 1
+{num_atoms + 9} 1 {x0 + xtri} {y0 + ytri} {z01} {d} {density} 1
+{num_atoms + 10} 1 {x0 - xtri} {y0 + ytri} {z01} {d} {density} 1
+{num_atoms + 11} 1 {x0 - d} {y0} {z01} {d} {density} 1
+{num_atoms + 12} 1 {x0 - xtri} {y0 - ytri} {z01} {d} {density} 1
+{num_atoms + 13} 1 {x0 + xtri} {y0 - ytri} {z01} {d} {density} 1
+{num_atoms + 14} 1 {x0} {y0} {z01} {d} {density} 1
 
 Bonds
 
@@ -144,6 +155,12 @@ Bonds
 4 1 {num_atoms + 1} {num_atoms + 5}
 5 1 {num_atoms + 1} {num_atoms + 6}
 6 1 {num_atoms + 1} {num_atoms + 7}
+7 1 {num_atoms + 14} {num_atoms + 8}
+8 1 {num_atoms + 14} {num_atoms + 9}
+9 1 {num_atoms + 14} {num_atoms + 10}
+10 1 {num_atoms + 14} {num_atoms + 11}
+11 1 {num_atoms + 14} {num_atoms + 12}
+12 1 {num_atoms + 14} {num_atoms + 13}
 
 """
 

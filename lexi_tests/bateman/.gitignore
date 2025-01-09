@@ -1,3 +1,5 @@
 *.liggghts
 *.bond
 *.Identifier
+*.data
+*.restart

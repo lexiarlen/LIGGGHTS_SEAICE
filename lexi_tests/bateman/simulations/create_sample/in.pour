@@ -20,16 +20,15 @@ variable l                       equal 1.0        # [m] sample height between "p
 variable strain_rate             equal 1e-3       # [1/s]
 
 # Derived Properties & Parameters
-variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
-variable cylinder_radius         equal ${l}*0.1
-variable cylinder_height         equal ${l}*0.5
-variable column_height_ini       equal ${l}*1.5
-variable top_plate_velocity      equal ${l}*${strain_rate}
-variable bond_skin               equal (1.05)*${diameter} 
 variable radius                  equal ${diameter}/2
+variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
+variable cylinder_radius         equal ${l}*0.2
+variable cylinder_height         equal ${l}*1.5-${radius}
+variable column_height_ini       equal ${cylinder_height}*2
+
 
 # Parameters for collapse
-variable coeff                  equal 1000*PI*(${radius}^2)*${rho_i}/1000 
+variable coeff                  equal PI*(${radius}^2)*${rho_i}
 variable dragx                  atom ${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vx)
 variable dragy                  atom ${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vy)
 variable dragz                  atom 0.5*${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vz)
@@ -38,7 +37,7 @@ variable dragz                  atom 0.5*${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1
 variable dt                      equal 1e-5                # really low to resolve high elastic modulus
 variable run_time                equal 1                   # [s] runtime
 variable num_timesteps           equal ${run_time}/${dt}   # 600,000 in this case
-variable dump_freq               equal 1000
+variable dump_freq               equal 2000
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
@@ -53,7 +52,7 @@ processors * * *
 
 # Domain
 boundary f f f                                                           
-region domain block -1 1 -1 1 0 3 units box 
+region domain block -1 1 -1 1 0 4 units box 
 create_box 2 domain
 region ins_region cylinder z 0 0 ${cylinder_radius} 0 ${column_height_ini} # cylinder centered at origin
 
@@ -93,7 +92,7 @@ fix top_wall all wall/gran model hertz tangential history primitive type 2 zplan
 
 fix int all nve/sphere
 fix gravi all gravity 10 vector 0 0 -1 # could add a drag force to make the relaxation quicker
-fix fdrag all addforce v_dragx v_dragy 0 #v_dragz
+fix fdrag all addforce v_dragx v_dragy 0 # added x-y drag to accelerate packing
 
 # Dump setup
 dump dmp all custom ${dump_freq} post/dump*.liggghts id mass x y z vx vy vz fx fy fz radius #c_stress[1] c_stress[2] c_stress[3] c_stress[4] c_stress[5] c_stress[6]
@@ -104,13 +103,13 @@ thermo_style custom step numbonds atoms time dt                 # custom pringti
 thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
 
 # run
-run 80000
-unfix gravi
-fix fdragz all addforce v_dragx v_dragy v_dragz
-run 300000
+run 120000
+unfix gravi # for dense sample don't unfix gravity
+fix fdragz all addforce v_dragx v_dragy v_dragz # added drag to accelerate relaxation 
+run 400000
 
-# delete atoms above z > cylinder height
+# delete atoms above z > cylinder height; need to subtract particle radii from desired cylinder height
 region reg2delete cylinder z 0 0 ${cylinder_radius} ${cylinder_height} ${column_height_ini} 
 delete_atoms region reg2delete
 
-write_data packed_cylinder_small_test.data
+write_data loose_sample.data

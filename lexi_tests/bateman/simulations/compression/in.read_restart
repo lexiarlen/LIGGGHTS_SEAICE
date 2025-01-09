@@ -30,7 +30,7 @@ variable bond_skin               equal (1.001)*${diameter} # 1% of the diameter 
 
 # Numerics & output
 variable dt                      equal 5e-7                # really low to resolve high elastic modulus
-variable run_time                equal 0.05                   # [s] runtime
+variable run_time                equal 0.04                   # [s] runtime
 variable num_timesteps           equal ${run_time}/${dt}   # 600,000 in this case
 variable dump_freq               equal 50
 
@@ -45,9 +45,9 @@ newton off                                                              # don't 
 boundary m m m
 hard_particles yes
 
-processors * * *                                                        # ligghts allocates processors for x,y,z '*'
+processors 1 1 4                                                        # ligghts allocates processors for x,y,z '*'
 
-read_data data/dense_sample_fixed_12_bonds.data
+read_restart restarts/dense_sample_fixed_12_bonds.restart
 
 communicate single vel yes              # ghost particles are given position and velocity information
 neighbor 0.002 bin                      # diameter/10 is a good threshold
@@ -78,13 +78,6 @@ fix prop5 all property/global gammat peratomtypepair 1 0.0
 # Set bond coefficients for a simple bond (no holes) with properties below; see Notion for more details 
 bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
 
-# Delete extra atoms
-group all_atoms type 1 
-variable n_atoms equal count(all_atoms)-14
-delete_bonds all atom 1 remove
-group atoms_2_delete id > ${n_atoms}
-delete_atoms group atoms_2_delete
-
 # Timestep & insertion
 timestep ${dt}                                                         
 run 0
@@ -98,17 +91,10 @@ group sample subtract all top_plate bot_plate
 
 ### ----------------------------------- bond grains ---------------------------------- ###
  
-compute bc all property/local batom1 batom2 bbondbroken bforceX bforceY bforceZ
-
-fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # nevery itype jtype bondskin btype newperts
-
-fix dtBond all check/timestep/bond 1 0.3                       # check the time step for the bond
-
-run 1                                                          # bond grains
-
-unfix dtBond                                                   # stop checking bond timestep (not doing anymore bonding)
-
-fix_modify bondcr every 0                                      # do not create new bonds after this line
+compute bcall all property/local batom1 batom2 bbondbroken
+compute bcplate top_plate property/local batom1 batom2 bbondbroken bforceZ
+compute bcsample sample property/local batom1 batom2 bbondbroken batom1z batom2z bforceZ
+compute stress sample stress/atom pair
 
 ### ----------------------------------- apply forces ---------------------------------- ###
 
@@ -119,25 +105,32 @@ fix compressive_force top_plate move linear 0 0 ${top_plate_velocity}
 
 ### ----------------------------------- run & output ---------------------------------- ###
 
-
-dump dmp_sample sample custom ${dump_freq} post/sample*.liggghts id mass x y z vx vy vz fx fy fz radius 
-dump_modify dmp_sample pad 10 sort id first yes                             # pad the timesteps with zeros
-
-dump dmp_top_plate top_plate custom ${dump_freq} post/top_plate*.liggghts id mass x y z vx vy vz fx fy fz radius 
+# ah shoot because the top plate is now bonded to the bottom plate i also need the bond force; bateman for sure did not do this; will fix this avo
+dump dmp_top_plate top_plate custom ${dump_freq} post/top_plate*.liggghts id x y z fz radius 
 dump_modify dmp_top_plate pad 10 sort id first yes                            # pad the timesteps with zeros
 
-dump dmp_all all custom ${dump_freq} post/dump*.liggghts id mass x y z vx vy vz fx fy fz radius 
-dump_modify dmp_all pad 10 sort id first yes                            # pad the timesteps with zeros
+dump dmp_sample sample custom ${dump_freq} post/sample*.liggghts id radius c_stress[3] 
+dump_modify dmp_sample pad 10 sort id first yes                            # pad the timesteps with zeros
 
-thermo 100000                                             # set output frequency for output for screen
+# run one more step to save the final
+dump topbfc top_plate local ${dump_freq} post/bfc_plate*.bond c_bcplate[3] c_bcplate[4]
+dump_modify topbfc pad 10 label 'BONDS' first yes
+
+dump samplebfc sample local ${dump_freq} post/bfc_sample*.bond c_bcsample[3] c_bcsample[4] c_bcsample[5] c_bcsample[6]
+dump_modify samplebfc pad 10 label 'BONDS' first yes
+
+thermo 10000                                             # set output frequency for output for screen
 thermo_style custom step numbonds atoms time dt                 # custom pringting to screen
 thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
 
-# configure the bond damping
-dump bondforcechain all local ${dump_freq} post/bfc*.bond &
-    c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6]
-dump_modify bondforcechain pad 10 label 'BONDS' first yes
-        
-
 run ${num_timesteps}
 #if "v_numbonds < ${bonds_thresh}" then quit
+
+# run one more step to save the final
+dump bondforcechain all local ${dump_freq} post/bfc_final*.bond c_bcall[1] c_bcall[2] c_bcall[3] 
+dump_modify bondforcechain pad 10 label 'BONDS' first yes
+
+dump dmp_all all custom ${dump_freq} post/all_atoms*.liggghts id x y z radius 
+dump_modify dmp_all pad 10 sort id first yes                            # pad the timesteps with zeros
+
+run 1

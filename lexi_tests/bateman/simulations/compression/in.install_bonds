@@ -110,34 +110,7 @@ unfix dtBond                                                   # stop checking b
 
 fix_modify bondcr every 0                                      # do not create new bonds after this line
 
-### ----------------------------------- apply forces ---------------------------------- ###
-
-fix integrate sample nve/sphere         
-
-fix bottom_plate_location bot_plate freeze
-fix compressive_force top_plate move linear 0 0 ${top_plate_velocity} 
 
 ### ----------------------------------- run & output ---------------------------------- ###
 
-
-dump dmp_sample sample custom ${dump_freq} post/sample*.liggghts id mass x y z vx vy vz fx fy fz radius 
-dump_modify dmp_sample pad 10 sort id first yes                             # pad the timesteps with zeros
-
-dump dmp_top_plate top_plate custom ${dump_freq} post/top_plate*.liggghts id mass x y z vx vy vz fx fy fz radius 
-dump_modify dmp_top_plate pad 10 sort id first yes                            # pad the timesteps with zeros
-
-dump dmp_all all custom ${dump_freq} post/dump*.liggghts id mass x y z vx vy vz fx fy fz radius 
-dump_modify dmp_all pad 10 sort id first yes                            # pad the timesteps with zeros
-
-thermo 100000                                             # set output frequency for output for screen
-thermo_style custom step numbonds atoms time dt                 # custom pringting to screen
-thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
-
-# configure the bond damping
-dump bondforcechain all local ${dump_freq} post/bfc*.bond &
-    c_bc[1] c_bc[2] c_bc[3] c_bc[4] c_bc[5] c_bc[6]
-dump_modify bondforcechain pad 10 label 'BONDS' first yes
-        
-
-run ${num_timesteps}
-#if "v_numbonds < ${bonds_thresh}" then quit
+write_restart restarts/dense_sample_fixed_12_bonds.restart
