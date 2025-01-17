@@ -248,7 +248,7 @@ if __name__ == '__main__':
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Generate figures from LIGGGHTS simulation NetCDF outputs.")
     parser.add_argument("--output-dir", required=True, help="Path to the output directory containing NetCDF files.")
-    parser.add_argument("--dt", type=float, default=0.0000005, help="Timestep for the simulation.")
+    parser.add_argument("--dt", type=float, default=0.000001, help="Timestep for the simulation.")
     args = parser.parse_args()
 
     # Extract arguments

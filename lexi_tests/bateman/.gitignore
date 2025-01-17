@@ -3,3 +3,5 @@
 *.Identifier
 *.data
 *.restart
+*.nc
+*.jpg

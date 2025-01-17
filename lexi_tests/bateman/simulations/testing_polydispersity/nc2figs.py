@@ -141,15 +141,15 @@ def plot_final_coord_nums(ds, output_directory, coord_nums):
         ax.add_patch(circle)
 
     ax.set_title(f'Time = 0 s')
-
+    return fig
     # Save the figure
-    os.makedirs(output_directory, exist_ok=True)
-    fpath = os.path.join(output_directory, 'coordnum_final_timestep.jpg')
-    plt.savefig(fpath, dpi=300)
-    plt.close()
+    # os.makedirs(output_directory, exist_ok=True)
+    # fpath = os.path.join(output_directory, 'coordnum_final_timestep.jpg')
+    # plt.savefig(fpath, dpi=300)
+    # plt.close()
 
 
-def plot_final_floes(t, ax, ds, labels, component_sizes):
+def plot_final_floes(t, ax, ds, labels, component_sizes, number_of_connected_components):
     ax.clear()  # Clear the previous frame
     # TODO modify dump2netcdf to make these attributes of the data
     x_min = ds['x'].min().values
@@ -248,7 +248,7 @@ if __name__ == '__main__':
     # Parse command-line arguments
     parser = argparse.ArgumentParser(description="Generate figures from LIGGGHTS simulation NetCDF outputs.")
     parser.add_argument("--output-dir", required=True, help="Path to the output directory containing NetCDF files.")
-    parser.add_argument("--dt", type=float, default=0.0000005, help="Timestep for the simulation.")
+    parser.add_argument("--dt", type=float, default=0.000001, help="Timestep for the simulation.")
     args = parser.parse_args()
 
     # Extract arguments
@@ -281,7 +281,7 @@ if __name__ == '__main__':
 
     if final_floes:
         fig, ax = plt.subplots(figsize=(8, 8))
-        plot_final_floes(-1, ax, ds_a, labels, component_sizes)
+        plot_final_floes(-1, ax, ds_a, labels, component_sizes, number_of_connected_components)
         outpath = os.path.join(output_directory, 'final_floes.jpg')
         plt.savefig(outpath, dpi = 300)
         plt.close()

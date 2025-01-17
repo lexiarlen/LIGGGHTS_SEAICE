@@ -15,6 +15,8 @@ import sys
 import os
 import numpy as np
 import pandas as pd
+import scipy.stats as stats
+import matplotlib.pyplot as plt
 
 def fix_overlaps(df):
     """
@@ -96,17 +98,42 @@ def main():
     xtri = d * np.cos(60*np.pi/180) 
     ytri = d * np.sin(60*np.pi/180)
 
-    
-
 
     # (2) Fix Overlaps
+    print("[INFO] Stats after fixing overlaps...")
 
     df, adjusted_radii_count = fix_overlaps(df)
     num_atoms = len(df)
-    mean_diameter = df['d'].mean()
     print(f"[INFO] Adjusted {adjusted_radii_count} diameters out of {num_atoms} total atoms.")
-    print(f"[INFO] New mean diameter: {mean_diameter}")
-  
+
+    data = df['d'].to_numpy()
+    a = np.min(data)
+    b = np.max(data)
+    # Kolmogorov-Smirnov test for uniform distribution
+    ks_stat, ks_pvalue = stats.kstest(data, 'uniform', args=(a, b-a))
+    print("[INFO] Kolmogorov-Smirnov statistic:", ks_stat)
+    print("[INFO] P-value:", ks_pvalue)
+
+    # Calculate mean and standard deviation for a uniform distribution
+    mean_uniform = (a + b) / 2
+
+    # Interpretation of results
+    if ks_pvalue > 0.05:
+        print(f"[INFO] K-S test gives that the data satisfies a uniform distribution with mean {mean_uniform}. The true mean is {np.mean(data)}.")
+    else:
+        print(f"[INFO] K-S test gives that the data does NOT satisfy a uniform distribution with mean {mean_uniform}. The true mean is {np.mean(data)}.")
+
+    # fig1 = plt.figure()
+    # plt.hist(data, bins=30, alpha=0.75, color='blue', edgecolor='black', density=True)
+    # plt.title('Histogram of Data')
+    # # Plot the normal distribution with the same mean and std dev
+    # plt.show()
+
+    # fig2 = plt.figure()
+    # # Q-Q plot for uniform distribution
+    # stats.probplot(data, dist="uniform", plot=plt)
+    # plt.title('Q-Q plot against a Uniform distribution')
+    # plt.show()
 
     # (3) Build new .data content
     header_info = f"""header line input data

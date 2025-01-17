@@ -26,24 +26,56 @@ start_dir="$(pwd)"
 
 # Workflow steps
 base_path="/home/arlenlex/LIGGGHTS_SEAICE/lexi_tests/bateman/simulations/ensemble"
+output_path="/mnt/c/Users/arlenlex/Documents/liggghts_data/bateman/simulations/ensemble"
 experiment_name="bond_skins"
-processors=1  # Adjust as needed
 
 for packing in dense1 dense2; do
-  for bond_skin in "1.01*${diameter}" "1.0001*${diameter}"; do
-    variant="${packing}_skin_${bond_skin//\*/x}"  # Replace * for filename compatibility
-    output_dir=$(create_output_dirs "$base_path" "$experiment_name" "$variant")
+  for bond_skin in 1.01 1.0001; do
+    echo "RUNNING PACKING: $packing with bond skin: $bond_skin"
+
+    variant=$(printf "%.0e" "$(echo "$bond_skin" | awk '{print $1-1}')")  # Subtract 1 and format
+    variant="${variant//-}$packing" # Remove negative signs in folder names
+    output_dir=$(create_output_dirs "$output_path" "$experiment_name" "$variant")
+
+    # Step 0: Remove existing post directory & output files
+
+    if [ -d "$base_path/post" ]; then
+        rm -rf $base_path/post
+        echo "Deleted existing 'post' directory."
+    fi
+
+    if [ -f "$output_dir/all_atoms_final.nc" ]; then
+        rm "$output_dir/all_atoms_final.nc"
+        echo "Deleted existing 'all_atoms_final.nc' file."
+    fi
+
+    if [ -f "$output_dir/atoms_plate.nc" ]; then
+        rm "$output_dir/atoms_plate.nc"
+        echo "Deleted existing 'atoms_plate.nc' file."
+    fi
+
+    if [ -f "$output_dir/bonds_final.nc" ]; then
+        rm "$output_dir/bonds_final.nc"
+        echo "Deleted existing 'bonds_final.nc' file."
+    fi
+    
+    if [ -f "$output_dir/stress_strain_data.nc" ]; then
+        rm "$output_dir/stress_strain_data.nc"
+        echo "Deleted existing 'stress_strain_data.nc' file."
+    fi
+
+
     
     # Step 1: Run in.install_bonds
-    sed "s|variable bond_skin .*|variable bond_skin equal $bond_skin|; s|read_data .*|read_data data/${packing}.data|; s|write_restart .*|write_restart restarts/${variant}.restart|" \
+    sed "s|variable bond_skin_multiplier .*|variable bond_skin_multiplier equal $bond_skin|; s|read_data .*|read_data data/${packing}.data|; s|write_restart .*|write_restart restarts/${packing}_skin_${variant}.restart|" \
         "$base_path/in.install_bonds" > "$base_path/temp.install_bonds"
-    run_liggghts "temp.install_bonds" "$processors" "$base_path"
+    run_liggghts "temp.install_bonds" "1" "$base_path"
     rm "$base_path/temp.install_bonds"
     
     # Step 2: Run in.read_restart
-    sed "s|read_restart .*|read_restart restarts/${variant}.restart|; s|write_restart .*|write_restart restarts/${variant}_final.restart|" \
+    sed "s|read_restart .*|read_restart restarts/${packing}_skin_${variant}.restart|" \
         "$base_path/in.read_restart" > "$base_path/temp.read_restart"
-    run_liggghts "temp.read_restart" "$processors" "$base_path"
+    run_liggghts "temp.read_restart" "4" "$base_path"
     rm "$base_path/temp.read_restart"
     
     # Step 3: Change back to the starting directory

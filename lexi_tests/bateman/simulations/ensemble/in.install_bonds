@@ -24,7 +24,8 @@ variable cylinder_radius         equal ${l}*0.2
 variable cylinder_height         equal ${l}*1.5 
 variable bot_plate_height        equal ${l}*0.25
 variable top_plate_height        equal ${l}*1.25
-variable bond_skin               equal (1.001)*${diameter} # 1% of the max diameter; should this be of the min diameter for polydisperse?
+variable bond_skin_multiplier    equal 1.001
+variable bond_skin               equal ${bond_skin_multiplier}*${diameter} # 1% of the max diameter; should this be of the min diameter for polydisperse?
 
 # Numerics & output
 variable dt                      equal 5e-7                # really low to resolve high elastic modulus
@@ -44,13 +45,13 @@ hard_particles yes
 
 processors * * *                                                        # ligghts allocates processors for x,y,z '*'
 
-read_data data/dense_sample_fixed_12_bonds.data
+read_data data/dense2.data
 
 communicate single vel yes              # ghost particles are given position and velocity information
 neighbor 0.002 bin                      # diameter/10 is a good threshold
 neigh_modify delay 0                    # don't delay the generation of neighbor lists   
 
-# Bond style
+# Bond style2
 bond_style gran                                                          # linear parallel bond
 
 # Contact style
@@ -86,16 +87,16 @@ delete_atoms group atoms_2_delete
 timestep ${dt}                                                         
 run 0
 
-# Groups
-region top_region cylinder z 0 0 ${cylinder_radius} ${top_plate_height} ${cylinder_height}
-group top_plate region top_region
-region bot_region cylinder z 0 0 ${cylinder_radius} 0 ${bot_plate_height}
-group bot_plate region bot_region
-group sample subtract all top_plate bot_plate
+# # Groups
+# region top_region cylinder z 0 0 ${cylinder_radius} ${top_plate_height} ${cylinder_height}
+# group top_plate region top_region
+# region bot_region cylinder z 0 0 ${cylinder_radius} 0 ${bot_plate_height}
+# group bot_plate region bot_region
+# group sample subtract all top_plate bot_plate
 
 ### ----------------------------------- bond grains ---------------------------------- ###
  
-compute bc all property/local batom1 batom2 bbondbroken bforceX bforceY bforceZ
+#compute bc all property/local batom1 batom2 bbondbroken bforceX bforceY bforceZ
 
 fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6         # nevery itype jtype bondskin btype newperts
 

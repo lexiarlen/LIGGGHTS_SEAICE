@@ -26,24 +26,56 @@ start_dir="$(pwd)"
 
 # Workflow steps
 base_path="/home/arlenlex/LIGGGHTS_SEAICE/lexi_tests/bateman/simulations/ensemble"
+output_path="/mnt/c/Users/arlenlex/Documents/liggghts_data/bateman/simulations/ensemble"
 experiment_name="compression"
 processors=4  # Adjust as needed
 
-for normal_strength in 5e5 1e6 5e6; do
-  for shear_strength in 5e5 1e6 5e6; do
-    variant="norm_${normal_strength}_shear_${shear_strength}"
-    output_dir=$(create_output_dirs "$base_path" "$experiment_name" "$variant")
+for normal_strength in 3e5 7e5 1.1e6 1.5e6; do 
+  for shear_strength in 3e5 7e5 1.1e6 1.5e6; do
+
+    echo "RUNNING COMPRESSION SIMULATION: w/ normal_strength $normal_strength Pa and shear strength $shear_strength Pa"
+
+    # Step 0: Delete existing post directory & output files
     
+    variant="norm_${normal_strength}_shear_${shear_strength}"
+    output_dir=$(create_output_dirs "$output_path" "$experiment_name" "$variant")
+    
+    if [ -d "$base_path/post" ]; then
+        rm -rf $base_path/post
+        echo "Deleted existing 'post' directory."
+    fi
+
+    if [ -f "$output_dir/all_atoms_final.nc" ]; then
+        rm "$output_dir/all_atoms_final.nc"
+        echo "Deleted existing 'all_atoms_final.nc' file."
+    fi
+
+    if [ -f "$output_dir/atoms_plate.nc" ]; then
+        rm "$output_dir/atoms_plate.nc"
+        echo "Deleted existing 'atoms_plate.nc' file."
+    fi
+
+    if [ -f "$output_dir/bonds_final.nc" ]; then
+        rm "$output_dir/bonds_final.nc"
+        echo "Deleted existing 'bonds_final.nc' file."
+    fi
+    
+    if [ -f "$output_dir/stress_strain_data.nc" ]; then
+        rm "$output_dir/stress_strain_data.nc"
+        echo "Deleted existing 'stress_strain_data.nc' file."
+    fi
+
+
     # Step 1: Run in.install_bonds
     sed "s|variable normal_strength .*|variable normal_strength equal $normal_strength|; s|variable shear_strength .*|variable shear_strength equal $shear_strength|; s|write_restart .*|write_restart restarts/${variant}.restart|" \
         "$base_path/in.install_bonds" > "$base_path/temp.install_bonds"
-    run_liggghts "temp.install_bonds" "$processors" "$base_path"
+    run_liggghts "temp.install_bonds" "1" "$base_path"
     rm "$base_path/temp.install_bonds"
     
     # Step 2: Run in.read_restart
-    sed "s|read_restart .*|read_restart restarts/${variant}.restart|; s|write_restart .*|write_restart restarts/${variant}_final.restart|" \
+    sed "s|read_restart .*|read_restart restarts/${variant}.restart|; s|variable normal_strength .*|variable normal_strength equal $normal_strength|; s|variable shear_strength .*|variable shear_strength equal $shear_strength|" \
         "$base_path/in.read_restart" > "$base_path/temp.read_restart"
-    run_liggghts "temp.read_restart" "$processors" "$base_path"
+    run_liggghts "temp.read_restart" "4" "$base_path"
     rm "$base_path/temp.read_restart"
     
     # Step 3: Change back to the starting directory

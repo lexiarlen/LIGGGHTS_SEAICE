@@ -7,15 +7,16 @@ variable elastic_modulus         equal 1.0e8      # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
 variable normal_strength         equal 5.0e5      # [Pa] bond critical normal strength
 variable shear_strength          equal 5.0e5      # [Pa] bond critical shear strength 
-variable coeff_rest_pp           equal 0.1       # [-] particle particle
+variable coeff_rest_pp           equal 0.1        # [-] particle particle
 variable friction_pp             equal 0.8        # [-] particle particle
 variable coeff_rest_pw           equal 0.1        # [-] particle wall
 variable friction_pw             equal 0.8        # [-] particle wall
 variable coeff_rest_ww           equal 0.1        # [-] wall wall
 variable friction_ww             equal 0.0        # [-] wall wall
+variable poly                    equal 0.2        # [%] polydispersity                 
 
 # Simulation Parameters
-variable phi                     equal 0.4        # [-] packing fraction
+variable phi                     equal 0.3        # [-] packing fraction
 variable l                       equal 1.0        # [m] sample height between "plates"
 variable strain_rate             equal 1e-3       # [1/s]
 
@@ -24,13 +25,14 @@ variable radius                  equal ${diameter}/2
 variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
 variable cylinder_radius         equal ${l}*0.2
 variable cylinder_height         equal ${l}*1.5-${radius}
-variable column_height_ini       equal ${cylinder_height}*2
+variable column_height_ini       equal ${cylinder_height}*2.5
 
 
 # Parameters for collapse
 variable coeff                  equal PI*(${radius}^2)*${rho_i}
 variable dragx                  atom ${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vx)
 variable dragy                  atom ${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vy)
+variable dragz                  atom 0.25*${coeff}*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vz)
 
 # Numerics & output
 variable dt                      equal 1e-5                # really low to resolve high elastic modulus
@@ -51,7 +53,7 @@ processors * * *
 
 # Domain
 boundary f f f                                                           
-region domain block -1 1 -1 1 0 4 units box 
+region domain block -1 1 -1 1 -0.5 5 units box 
 create_box 2 domain
 region ins_region cylinder z 0 0 ${cylinder_radius} 0 ${column_height_ini} # cylinder centered at origin
 
@@ -78,11 +80,21 @@ bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_da
 # Insertion configuration
 fix pts1 all particletemplate/sphere 49979687 atom_type 1 density constant ${rho_i} radius constant ${radius}
 fix pdd1 all particledistribution/discrete 200237 1 pts1 1.0
-fix ins all insert/pack seed 133711 distributiontemplate pdd1 insert_every once overlapcheck yes volumefraction_region ${phi} region ins_region
+fix ins all insert/pack seed 409709 distributiontemplate pdd1 insert_every once overlapcheck yes volumefraction_region ${phi} region ins_region
 
 # Timestep & insertion
 timestep ${dt}                                                         
-run 0
+run 1
+
+# Implement {poly}% polydispersity by randomly assigning new diameters looping through each grain
+group all_atoms type 1
+variable	num_grains equal count(all_atoms)
+label		loop_through_each_grain
+variable	iter loop ${num_grains}
+   variable	modifiedDiameter equal v_diameter*(random(-1,1,322871)*v_poly+1)
+   set	 	atom ${iter} diameter ${modifiedDiameter}
+next		iter
+jump		SELF loop_through_each_grain
 
 # Relaxation setup
 fix w_cyl all wall/gran model hertz tangential history primitive type 2 zcylinder ${cylinder_radius} 0 0
@@ -90,23 +102,22 @@ fix bot_wall all wall/gran model hertz tangential history primitive type 2 zplan
 fix top_wall all wall/gran model hertz tangential history primitive type 2 zplane ${column_height_ini}
 
 fix int all nve/sphere
-fix gravi all gravity 1 vector 0 0 -1 # could add a drag force to make the relaxation quicker
+fix gravi all gravity 10 vector 0 0 -1 
 fix fdrag all addforce v_dragx v_dragy 0 # added x-y drag to accelerate packing
 
 # Dump setup
-dump dmp all custom ${dump_freq} post_loose/dump*.liggghts id mass x y z vx vy vz fx fy fz radius
-dump_modify dmp pad 10 sort id first yes                           # pad the timesteps with zeros
+dump dmp all custom 5000 post/dump*.liggghts id x y z radius vz 
+dump_modify dmp pad 10 sort id first yes   
 
 thermo 20000                                             # set output frequency for output for screen
 thermo_style custom step numbonds atoms time dt                 # custom pringting to screen
 thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
 
 # run
-run 120000
-
+run 150000
 
 # delete atoms above z > cylinder height; need to subtract particle radii from desired cylinder height
 region reg2delete cylinder z 0 0 ${cylinder_radius} ${cylinder_height} ${column_height_ini} 
 delete_atoms region reg2delete
 
-write_data exps/loose3.data
+write_data exps/poly20_2.data
