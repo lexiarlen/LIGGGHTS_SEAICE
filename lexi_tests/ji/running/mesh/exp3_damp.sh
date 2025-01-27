@@ -24,94 +24,90 @@ run_liggghts() {
 start_dir="$(pwd)"
 
 # Workflow steps
-base_path="/home/arlenlex/LIGGGHTS_SEAICE/lexi_tests/bateman/simulations/hertzian_contact" 
-output_path="/mnt/c/Users/arlenlex/Documents/liggghts_data/bateman/simulations/hertzian_contact"
+base_path="/home/arlenlex/LIGGGHTS_SEAICE/lexi_tests/ji/simulations/mesh" 
+output_path="/mnt/c/Users/arlenlex/Documents/liggghts_data/ji/simulations/mesh"
 experiment_name="damp"
 processors_install=1  
-processors_load=5
+processors_load=4
+packing="ji_mesh2"
 
-for packing in mono1 poly20_1; do
-    for bond_damping in 0.0001 0.1; do
-        echo "RUNNING PACKING: $packing with bond skin: $bond_damping"
 
-        # Step 1: Create output directory
-        variant="damp_$bond_damping"
-        output_dir=$(create_output_dirs "$output_path" "$experiment_name" "$variant")
+for bond_damping in 0 1; do
+    echo "RUNNING PACKING: $packing with bond damping: $bond_damping"
 
-        # Step 2: Remove existing post directory & output files
-        if [ -d "$base_path/post_${experiment_name}_${variant}" ]; then
-            rm -rf $base_path/post_${experiment_name}_${variant}
-            echo "Deleted existing 'post' directory."
-        fi
+    # Step 1: Create output directory
+    variant="damp_$bond_damping"
+    output_dir=$(create_output_dirs "$output_path" "$experiment_name" "$variant")
 
-        if [ -f "$output_dir/all_atoms_final.nc" ]; then
-            rm "$output_dir/all_atoms_final.nc"
-            echo "Deleted existing 'all_atoms_final.nc' file."
-        fi
+    # Step 2: Remove existing post directory & output files
+    if [ -d "$base_path/post_${experiment_name}_${variant}" ]; then
+        rm -rf $base_path/post_${experiment_name}_${variant}
+        echo "Deleted existing 'post' directory."
+    fi
 
-        if [ -f "$output_dir/atoms_plate.nc" ]; then
-            rm "$output_dir/atoms_plate.nc"
-            echo "Deleted existing 'atoms_plate.nc' file."
-        fi
+    if [ -f "$output_dir/atoms.nc" ]; then
+        rm "$output_dir/atoms.nc"
+        echo "Deleted existing 'atoms.nc' file."
+    fi
 
-        if [ -f "$output_dir/bonds_final.nc" ]; then
-            rm "$output_dir/bonds_final.nc"
-            echo "Deleted existing 'bonds_final.nc' file."
-        fi
+    if [ -f "$output_dir/plate.nc" ]; then
+        rm "$output_dir/plate.nc"
+        echo "Deleted existing 'plate.nc' file."
+    fi
 
-        if [ -f "$output_dir/stress_strain_data.nc" ]; then
-            rm "$output_dir/stress_strain_data.nc"
-            echo "Deleted existing 'stress_strain_data.nc' file."
-        fi
+    if [ -f "$output_dir/bonds_final.nc" ]; then
+        rm "$output_dir/bonds_final.nc"
+        echo "Deleted existing 'bonds_final.nc' file."
+    fi
+    
+    if [ -f "$output_dir/stress_strain_data.nc" ]; then
+        rm "$output_dir/stress_strain_data.nc"
+        echo "Deleted existing 'stress_strain_data.nc' file."
+    fi
 
-        # Step 3: Determine poly value: 0 for mono, 0.1 for poly10, 0.2 for poly20
-        if [[ "$packing" == mono* ]]; then
-        poly_value=0
-        elif [[ "$packing" == poly10* ]]; then
-        poly_value=0.1
-        elif [[ "$packing" == poly20* ]]; then
-        poly_value=0.2
-        fi
 
-        # Step 4: Run in.bond
-        sed "s|variable bond_damp_val .*|variable bond_damp_val equal $bond_damping|; s|read_data .*|read_data data/${packing}.data|; \
-            s|variable poly .*|variable poly equal $poly_value|; s|write_restart .*|write_restart restarts/${packing}_skin_${variant}.restart|" \
-            "$base_path/in.bond" > "$base_path/temp.bond"
-        run_liggghts "temp.bond" "$processors_install" "$base_path"
-        rm "$base_path/temp.bond"
-        
-        # Step 5: Run in.compress
-        sed "s|variable bond_damp_val .*|variable bond_damp_val equal $bond_damping|; s|variable post_dir .*|variable post_dir string "post_${experiment_name}_${variant}"|; \ 
-            s|read_restart .*|read_restart restarts/${packing}_skin_${variant}.restart|" \
-            "$base_path/in.compress" > "$base_path/temp.compress"
-        run_liggghts "temp.compress" "$processors_load" "$base_path"
-        rm "$base_path/temp.compress"
-        
-        # Step 6: Change back to the starting directory
-        cd "$start_dir" || exit 1
-        
-        # Step 7: Run dump2nc.py
+    # Step 3: Run in.bond
+    sed "s|read_data .*|read_data data/${packing}.data|; s|write_restart .*|write_restart restarts/${variant}.restart|" \
+        "$base_path/in.bond" > "$base_path/temp.bond"
+    run_liggghts "temp.bond" "$processors_install" "$base_path"
+    rm "$base_path/temp.bond"
+    
+    # Step 4: Run in.compress #; s|write_restart .*|write_restart restarts/${packing}_final.restart|
+    sed "s|read_restart .*|read_restart restarts/${variant}.restart|; s|variable bond_damp_val .*|variable bond_damp_val equal $bond_damping|; \
+        s|variable post_dir .*|variable post_dir string "post_${experiment_name}_${variant}"|;" \
+        "$base_path/in.compress" > "$base_path/temp_$variant.compress"
+    run_liggghts "temp_$variant.compress" "$processors_load" "$base_path"
+    rm "$base_path/temp_$variant.compress"
+    
+    # Step 5: Change back to the starting directory
+    cd "$start_dir" || exit 1
+    
+    if [ ! -f "$base_path/post_${experiment_name}_${variant}" ]; then
+        # Step 6: Run dump2nc.py
         python3 dump2nc.py "$base_path/post_${experiment_name}_${variant}" "$output_dir"
 
-        # Step 8: remove post directory
-        rm -rf "$base_path/post_${experiment_name}_${variant}"
+        # Step 7: remove post directory
+        #rm -rf "$base_path/post_${experiment_name}_${variant}"
         
-        # Step 9: Run nc2figs.py
+        # Step 8: Run nc2figs.py
         python3 nc2figs.py --output-dir "$output_dir" --dt 0.000001
+    else 
+        echo "Skipping processing, simulation error."
+    fi
 
-        # Step 10: Delete the output files to save space
-        if [ -f "$output_dir/all_atoms_final.nc" ]; then
-            rm "$output_dir/all_atoms_final.nc"
-            echo "Deleted existing 'all_atoms_final.nc' file."
-        fi
+    # Step 9: Delete the output files to save space
+    if [ -f "$output_dir/atoms.nc" ]; then
+        rm "$output_dir/atoms.nc"
+        echo "Deleted existing 'atoms.nc' file."
+    fi
 
-        if [ -f "$output_dir/atoms_plate.nc" ]; then
-            rm "$output_dir/atoms_plate.nc"
-            echo "Deleted existing 'atoms_plate.nc' file."
-        fi
+    if [ -f "$output_dir/plate.nc" ]; then
+        rm "$output_dir/plate.nc"
+        echo "Deleted existing 'plate.nc' file."
+    fi
 
-        if [ -f "$output_dir/bonds_final.nc" ]; then
-            rm "$output_dir/bonds_final.nc"
-            echo "Deleted existing 'bonds_final.nc' file."
-    done
+    if [ -f "$output_dir/bonds_final.nc" ]; then
+        rm "$output_dir/bonds_final.nc"
+        echo "Deleted existing 'bonds_final.nc' file."
+    fi
 done

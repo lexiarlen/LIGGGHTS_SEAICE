@@ -44,14 +44,9 @@ for packing in ji_nomesh1 ji_nomesh2; do
             echo "Deleted existing 'post' directory."
         fi
 
-        if [ -f "$output_dir/all_atoms_final.nc" ]; then
-            rm "$output_dir/all_atoms_final.nc"
-            echo "Deleted existing 'all_atoms_final.nc' file."
-        fi
-
-        if [ -f "$output_dir/atoms_plate.nc" ]; then
-            rm "$output_dir/atoms_plate.nc"
-            echo "Deleted existing 'atoms_plate.nc' file."
+        if [ -f "$output_dir/atoms.nc" ]; then
+            rm "$output_dir/atoms.nc"
+            echo "Deleted existing 'atoms.nc' file."
         fi
 
         if [ -f "$output_dir/bonds_final.nc" ]; then

@@ -86,7 +86,8 @@ def value_to_color(value, norm, cmap):
     normed = norm(value)
     return cmap(normed)
 
-def plot_final_coord_nums(ds, output_directory, coord_nums):
+
+def plot_final_coord_nums(ds, output_directory, coordnums_df):
     """
     Plots the atom positions at the first timestep, colored by coordination numbers.
 
@@ -104,9 +105,9 @@ def plot_final_coord_nums(ds, output_directory, coord_nums):
     # Get plot limits
     x_min = ds['x'].min().values
     x_max = ds['x'].max().values
-    y_min = ds['z'].min().values
-    y_max = ds['z'].max().values
-    padding = 0.2  
+    y_min = ds['y'].min().values
+    y_max = ds['y'].max().values
+    padding = 5  
 
     ax.set_xlim(x_min - padding, x_max + padding)
     ax.set_ylim(y_min - padding, y_max + padding)
@@ -116,9 +117,11 @@ def plot_final_coord_nums(ds, output_directory, coord_nums):
     # Atom IDs and initial positions
     atom_ids = ds['id'].values
     x0 = ds['x'].isel(timestep=0).values  
-    y0 = ds['z'].isel(timestep=0).values  
+    y0 = ds['y'].isel(timestep=0).values  
     radius0 = ds['radius'].isel(timestep=0).values  
 
+    # Coordination numbers at the first timestep
+    coord_nums = coordnums_df.iloc[:, 0].values  # Assuming columns are timesteps
 
     # Set up colormap and normalization
     cmap = cm.jet
@@ -140,11 +143,12 @@ def plot_final_coord_nums(ds, output_directory, coord_nums):
         circle = Circle((x, y), radius, alpha=0.5, color=color)
         ax.add_patch(circle)
 
-    ax.set_title(f'Time = 0 s')
+    timestep_value = ds['timestep'].values[0]
+    ax.set_title(f'Time = {timestep_value} s')
 
     # Save the figure
     os.makedirs(output_directory, exist_ok=True)
-    fpath = os.path.join(output_directory, 'coordnum_final_timestep.jpg')
+    fpath = os.path.join(output_directory, 'coordnum_first_timestep.jpg')
     plt.savefig(fpath, dpi=300)
     plt.close()
 
@@ -359,7 +363,7 @@ if __name__ == '__main__':
     coordnum_initial = False
     final_floes = True
     stress_strain = True
-    simulation_gif = True
+    simulation_gif = False
 
     # Open datasets
     fpath_a = os.path.join(output_directory, 'atoms.nc')

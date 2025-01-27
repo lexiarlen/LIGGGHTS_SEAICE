@@ -28,7 +28,7 @@ base_path="/home/arlenlex/LIGGGHTS_SEAICE/lexi_tests/ji/simulations/mesh"
 output_path="/mnt/c/Users/arlenlex/Documents/liggghts_data/ji/simulations/mesh"
 experiment_name="packing"
 processors_install=1  
-processors_load=3
+processors_load=4
 
 for packing in ji_mesh1 ji_mesh2; do 
     echo "RUNNING PACKING: $packing"

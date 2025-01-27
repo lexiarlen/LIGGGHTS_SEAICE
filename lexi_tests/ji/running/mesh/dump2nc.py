@@ -34,9 +34,11 @@ def process_atom_dump_file(filepath: os.PathLike):
 
 def get_atom_ds(directory_path: os.PathLike, file_names, output_path: os.PathLike, return_ds=False):
     """Process all dump files from a directory and concatenate into xarray Dataset."""
-    filepaths = sorted(glob.glob(os.path.join(directory_path, file_names)))
-    datasets = (process_atom_dump_file(fp) for fp in filepaths)
-    ds = xr.concat(datasets, dim="timestep")  # Modify for lost atoms if needed
+    filepaths = sorted(glob.glob(os.path.join(directory_path, file_names)))[0] # jet getfirst
+    print(filepaths)
+    #datasets = (process_atom_dump_file(fp) for fp in filepaths)
+    ds = process_atom_dump_file(filepaths)
+    #ds = xr.concat(datasets, dim="timestep")  # Modify for lost atoms if needed
     ds.to_netcdf(output_path)
     print(f'Saved {os.path.basename(output_path)}.')
     if return_ds:
@@ -143,11 +145,6 @@ def main():
         os.remove(atom_outpath) 
     get_atom_ds(post_dir, 'atoms*.liggghts', atom_outpath)
 
-    # Process all atom data for final figure
-    # all_atoms_output_path = os.path.join(out_dir, 'all_atoms_final.nc')
-    # if os.path.isfile(all_atoms_output_path):
-    #     os.remove(all_atoms_output_path)
-    # get_atom_ds(post_dir, 'all_atoms*.liggghts', all_atoms_output_path)
 
 if __name__ == '__main__':
     main()
