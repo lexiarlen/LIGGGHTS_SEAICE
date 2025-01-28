@@ -7,9 +7,8 @@ import glob
 import pandas as pd
 import numpy as np
 import xarray as xr
-import netCDF4 as nc
+import netCDF4 as ncp
 import argparse
-import pyvista as pv
 
 def process_atom_dump_file(filepath: os.PathLike):
     """Read atom dump file and convert to xarray Dataset."""

@@ -32,7 +32,7 @@ processors_load=4
 packing="ji_mesh2"
 
 
-for bond_damping in 0 1; do
+for bond_damping in 5; do
     echo "RUNNING PACKING: $packing with bond damping: $bond_damping"
 
     # Step 1: Create output directory

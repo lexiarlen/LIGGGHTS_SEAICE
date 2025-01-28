@@ -35,7 +35,7 @@ convert_for_bc() {
     echo "$1" | sed 's/\([0-9.]\)e\([0-9]\+\)/\1*10^\2/'
 }
 
-for norm in 1e6 5e6 10e6 50e6; do
+for norm in 5e6 10e6 50e6; do
     for shear in 5e6 10e6 50e6; do
 
         echo "RUNNING PACKING: $packing with normal strength: $norm and shear strength: $shear"

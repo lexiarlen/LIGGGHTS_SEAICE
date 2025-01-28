@@ -12,7 +12,7 @@ variable max_diameter            equal 0.015      # [m] max particles diameter
 
 # Simulation Parameters
 variable l                       equal 0.4        # [m] sample height between "plates"
-variable strain_rate             equal 7.5e-3       # [1/s]
+variable strain_rate             equal 5e-2       # [1/s]
 
 # Derived Properties & Parameters
 variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
@@ -23,7 +23,7 @@ variable top_plate_velocity      equal -1*${l}*${strain_rate}
 
 # Numerics & output
 variable dt                      equal 1e-6                # really low to resolve high elastic modulus
-variable run_time                equal 1.5                 # [s] runtime
+variable run_time                equal 0.8                 # [s] runtime
 variable num_timesteps           equal floor(${run_time}/${dt})   
 variable dump_freq               equal 500
 variable post_dir                string "post"

@@ -28,9 +28,9 @@ base_path="/home/arlenlex/LIGGGHTS_SEAICE/lexi_tests/ji/simulations/nomesh"
 output_path="/mnt/c/Users/arlenlex/Documents/liggghts_data/ji/simulations/nomesh"
 experiment_name="packing"
 processors_install=1  
-processors_load=3
+processors_load=4
 
-for packing in ji_nomesh1 ji_nomesh2; do 
+for packing in ji_nomesh2; do 
     echo "RUNNING PACKING: $packing"
 
     # Step 1: Create output directory

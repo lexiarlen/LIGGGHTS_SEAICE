@@ -35,7 +35,7 @@ for e in 0.1 0.3 0.5 0.8; do
     echo "RUNNING PACKING: $packing with resitution coefficient: $e"
 
     # Step 1: Create output directory
-    variant="restitution_${mu}"
+    variant="restitution_${e}"
     output_dir=$(create_output_dirs "$output_path" "$experiment_name" "$variant")
 
     # Step 2: Remove existing post directory & output files
