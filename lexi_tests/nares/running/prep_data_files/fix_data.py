@@ -46,6 +46,33 @@ def fix_overlaps(df):
             df.loc[i+1, 'd'] -= max_overlap + 1e-10
     return df, adjusted_radii_count
 
+def fix_overlaps_2d(df):
+    """
+    Adjust diameters so that no two particles overlap. Before doing this, shrink the 
+    particle diameter by the bond_skin_thickness. By design, in the packing process,
+    particles are created too large by the bond_skin_thickness. 
+
+    df must have columns: ['x', 'y', 'd']
+    """
+    coords = df[['x', 'y']].to_numpy()
+    radii = 0.5 * df['d'].to_numpy()
+    n = len(coords)
+    adjusted_radii_count = 0
+    for i in range(n):
+        distances = np.sqrt(np.sum((coords[i] - coords)**2, axis=1))
+        # Indices of all particles that overlap with particle i
+        overlap_indices = np.where((distances < (radii[i] + radii)) & (distances > 0))[0]
+        if overlap_indices.size > 0:
+            adjusted_radii_count += 1
+            max_overlap = 0
+            for j in overlap_indices:
+                # Overlap amount
+                overlap_amount = radii[i] + radii[j] - distances[j]
+                max_overlap = np.maximum(overlap_amount, max_overlap)
+            # Reduce diameter by the max overlap
+            df.loc[i+1, 'd'] -= max_overlap + 1e-10
+    return df, adjusted_radii_count
+
 def get_line(xi, xf, yi, yf, d):
     """
     computes x and y coordinates of particles along a line from (x_i, y_i) to 
@@ -78,8 +105,8 @@ def get_bdy_particles_coords(d, include_top_bot_boundaries=False):
     # Initial and final coordinates for each wall (in km)
     x_i = np.array([  0,  40,  40,   0,   0, 120, 120,  80,  80, 120], dtype=float)
     x_f = np.array([ 40,  40,   0,   0, 120, 120,  80,  80, 120,   0], dtype=float)
-    y_i = np.array([  0,  80, 120, 160, 240, 240, 160, 120,  80,   0], dtype=float)
-    y_f = np.array([ 80, 120, 160, 240, 240, 160, 120,  80,   0,   0], dtype=float)
+    y_i = np.array([  0,  80, 120, 160, 245, 245, 160, 120,  80,   0], dtype=float)
+    y_f = np.array([ 80, 120, 160, 245, 245, 160, 120,  80,   0,   0], dtype=float)
 
     # Create an xarray dataset
     ds = xr.Dataset(
@@ -126,9 +153,15 @@ def get_bdy_particles_coords(d, include_top_bot_boundaries=False):
         # Accumulate
         all_x.extend(x_vals)
         all_y.extend(y_vals)
+
+    # Fix units
+    all_x = np.array(all_x)*1e3
+    all_y = np.array(all_y)*1e3
     # Create a DataFrame
-    df = pd.DataFrame({"x": all_x, "y": all_y})
-    return df
+    df_bdy = pd.DataFrame({"x": all_x, "y": all_y})
+    df_bdy["id"] = range(1, len(df_bdy) + 1)
+    df_bdy = df_bdy.set_index("id")
+    return df_bdy
 
 def main():
     """
@@ -139,15 +172,16 @@ def main():
         bond_skin_thickness = float(bond_skin_thickness)
     elif len(sys.argv) == 6:
         _, xlo, xhi, ylo, yhi, original_fpath = sys.argv
-        bond_skin_thickness = 0.001*2100
+        bond_skin_thickness = 0.001*2200
     else:
         print("Usage: python fix_data.py xlo xhi ylo yhi repo bond_skin_thickness")
         sys.exit(1)
 
-    xlo = float(xlo)
-    xhi = float(xhi)
-    ylo = float(ylo)
-    yhi = float(yhi)
+    # Convert domain size values to m and floats
+    xlo = float(xlo)*1e3
+    xhi = float(xhi)*1e3
+    ylo = float(ylo)*1e3
+    yhi = float(yhi)*1e3
 
     # Construct file paths
     basename = os.path.splitext(os.path.basename(original_fpath))[0]
@@ -176,7 +210,7 @@ def main():
     df = df.set_index("id")
     df["bond_type"] = 1
 
-    # Set parameters to install bonds on fake atoms to allow successful import
+    # (2) Set parameters to install bonds on fake atoms to allow successful import
     # These will be deleted upon import so overlap is ok
     d = df['d'].iloc[1]               # set diameter of fake atoms to be that of the first atom
     density = df['density'].iloc[1]   # set density of fake atoms to be that of the first atom
@@ -191,28 +225,36 @@ def main():
     # (2) Get bdy particles
     mean_d = df['d'].mean() - bond_skin_thickness
     df_bdy = get_bdy_particles_coords(mean_d)
+    num_bdy_particles = len(df_bdy['x'])
 
     # (3) Fix Overlaps
-    df['d'] = df['d'] - bond_skin_thickness # preliminary diameter adjustment
+
+    # 3.1 delete atoms at the very edge that got uplifted
+    df = df[df['z'] <= -4000]
+    df.index = range(1, len(df) + 1) # reindex dataframe so that fix overlaps still works
+
+    # 3.2 run overlap code
+    df['d'] -= bond_skin_thickness # preliminary diameter adjustment
+    #df['z'] = np.zeros_like(df['z']) # set all z coordinates to 0
 
     print(f"[INFO] Original mean diameter {mean_d} m.")
 
-    df, adjusted_radii_count = fix_overlaps(df)
-    num_atoms = len(df)
+    df, adjusted_radii_count = fix_overlaps_2d(df)
+    num_atoms = len(df) + num_bdy_particles
     print(f"[INFO] Adjusted {adjusted_radii_count} diameters out of {num_atoms} total atoms.")
     print(f"[INFO] New mean diameter {df['d'].mean()} m, min diameter = {df['d'].min()}, and max diameter = {df['d'].max()}.")
 
     # (3) Build new .data content
     header_info = f"""header line input data
 
-{num_atoms + 14} atoms
+{num_atoms + 7} atoms
 2 atom types
 6 bonds
 1 bond types
 
 {xlo} {xhi} xlo xhi
 {ylo} {yhi} ylo yhi
-{-d} {d} zlo zhi
+{-mean_d} {mean_d} zlo zhi
 
 Atoms
 """
@@ -220,10 +262,16 @@ Atoms
     # Initialize the list to store each line for the file
     output_lines = [header_info]
 
+    # Add the boundary particles to the atoms section
+    for index, row in df_bdy.iterrows():
+        # format: id atom_type x y z d rho bond_type?
+        atom_line = f"{index} 2 {row['x']} {row['y']} 0 {mean_d} {density} 1"
+        output_lines.append(atom_line)
+
     # Generate the atoms section
     for index, row in df.iterrows():
         # format: id atom_type x y z d rho bond_type?
-        atom_line = f"{index} 2 {row['x']} {row['y']} 0 {row['d']} {row['density']} 1"
+        atom_line = f"{index+num_bdy_particles} 1 {row['x']} {row['y']} 0 {row['d']} {row['density']} 1"
         output_lines.append(atom_line)
 
     # Pseudo bond info; add 7 extra atoms and install bond between them to implicitly set max bonds/atom
