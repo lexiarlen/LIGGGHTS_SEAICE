@@ -31,7 +31,7 @@ variable maxz                    equal 10e3+${pad1}
 # Derived Properties & Parameters
 variable true_max_diameter       equal ${true_mean_diameter}*(1+${poly}) # [m] max particle diameter
 variable true_min_diameter       equal ${true_mean_diameter}*(1-${poly}) # [m] min particle diameter
-variable bond_skin_thickness     equal ${bs_multiplier}*${true_max_diameter}    # [m] 0.5% of the max diameter; will subtract this quantity first when doing the packing fix
+variable bond_skin_thickness     equal ${bs_multiplier}*${true_max_diameter}    # [m] 0.1% of the max diameter; will subtract this quantity first when doing the packing fix
 variable max_diameter            equal ${true_max_diameter}+${bond_skin_thickness}       # [m] max particle diameter for packing 
 variable min_diameter            equal ${true_min_diameter}+${bond_skin_thickness}       # [m] min particles diameter for packing; added 0.0001 for first step in shrinking
 variable mean_diameter           equal (${min_diameter}+${max_diameter})/2       # [m] mean particle diameter for packing; added 0.0001 for first step in shrinking
