@@ -58,6 +58,7 @@ def fix_overlaps_2d(df, repo, max_iters = 300, percent_d_adj = 0.01):
     mean_d = df['d'].mean()
     first_pass_adj = mean_d*percent_d_adj
     overlaps_remaining = []
+    initial_overlaps = []
     n = len(coords)
     for iteration in range(max_iters):
         n_overlaps_this_pass = 0
@@ -68,8 +69,13 @@ def fix_overlaps_2d(df, repo, max_iters = 300, percent_d_adj = 0.01):
             overlap_indices = np.where((distances < (radii[i] + radii)) & (distances > 0))[0]
             if overlap_indices.size > 0:
                 n_overlaps_this_pass += 1
+                if iteration == 0:
+                    max_overlap = 0
+                    for j in overlap_indices:
+                        overlap_amount = radii[i] + radii[j] - distances[j]
+                        max_overlap = np.maximum(max_overlap, overlap_amount)
+                    initial_overlaps.append(max_overlap)
                 df.loc[i+1, 'd'] -= first_pass_adj + 1e-5 # adjust diameter at index label i+1 = coords[i]
-        #print(f'[INFO] Number of overlaps currently = {n_overlaps_this_pass}')
         overlaps_remaining.append(n_overlaps_this_pass)
         if n_overlaps_this_pass == 0:
             print(f'[INFO] Converged at iteration # = {iteration}')
@@ -81,6 +87,8 @@ def fix_overlaps_2d(df, repo, max_iters = 300, percent_d_adj = 0.01):
     ax.set_ylabel('# Fixed Overlaps')
     plt.savefig(os.path.join(repo, f'overlaps_{percent_d_adj}.jpg'), dpi=300, bbox_inches='tight')
     np.save(os.path.join(repo, f'overlaps_{percent_d_adj}.npy'), np.array(overlaps_remaining))
+    np.save(os.path.join(repo, f'initial_overlaps_{percent_d_adj}.npy'), np.array(initial_overlaps))
+
 
     # # final adjusment by maximum overlap
     # radii = 0.5 * df['d'].to_numpy()
@@ -303,7 +311,7 @@ Atoms
     # Add the boundary particles to the atoms section
     for index, row in df_bdy.iterrows():
         # format: id atom_type x y z d rho bond_type?
-        atom_line = f"{index} 2 {row['x']} {row['y']} 0 {mean_d} {density} 1"
+        atom_line = f"{index} 2 {row['x']} {row['y']} 0 {mean_d} 920 1" # hard coded density be careful!!
         output_lines.append(atom_line)
 
     # Generate the atoms section

@@ -6,3 +6,4 @@ post/*
 *.data
 *.jpg
 *.npy
+*.bond

@@ -44,8 +44,13 @@ variable dragx                   atom v_Fdrag_atmos_x+v_Fdrag_ocean_x
 variable dragy                   atom v_Fdrag_atmos_y+v_Fdrag_ocean_y
 
 # Numerics & output
-variable dt                      equal 0.01              
-
+variable dt                      equal 0.01                     
+variable run_time                equal 3600/2                          # [s] runtime
+variable num_dumps               equal 100   
+variable num_timesteps           equal floor(${run_time}/${dt})
+variable dump_freq               equal floor(${num_timesteps}/${num_dumps})
+variable ts_check_freq           equal 1000
+variable post_dir                string "post"
 ### ----------------------------------- build simulation ----------------------------------- ###
 
 # Preliminaries
@@ -94,17 +99,38 @@ fix int active nve/sphere
 fix 2d all enforce2d
 fix apply_winds all addforce v_dragx v_dragy 0 # added x-y drag to accelerate packing
 
+# Compute bonds
+compute bc all property/local batom1 batom2 bbondbroken 
+
 # Thermo setup
 thermo 1000                                             # set output frequency for output for screen
 thermo_style custom step numbonds atoms time dt cpu ke                 # custom pringting to screen
 thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
 
 # Dump setup
-dump dmp all custom 500 post/dump*.liggghts id x y z radius vx vy vz
+dump dmp all custom ${dump_freq} ${post_dir}/dump*.liggghts id x y z radius vx vy vz 
+# do i need vel data; maybe nice for debugging but what to do with it?, mean vel through the fjord would be helpful, so can get area flux
+# dans 2017 plots vels along fjord center line at dif crucial timesteps
+# west & dans plot principal stresses. this will be expensive to compute because bond and atom stresses
 dump_modify dmp pad 10 sort id first yes   
 
-# Timestep checking
-fix dtBond all check/timestep/bond 1000 0.3                       # check the time step for the bond
-fix ts_check all check/timestep/gran 1000 0.1 0.1
+dump bondforcechain all local ${dump_freq} ${post_dir}/bfc*.bond c_bc[1] c_bc[2] c_bc[3] 
+dump_modify bondforcechain pad 10 label 'BONDS' first yes
 
-run 20000 # replace with  run X every Y "set atom * property/atom heatSource v_H" maybe
+# Timestep checking
+fix dtBond all check/timestep/bond ${ts_check_freq} 0.3                       # check the time step for the bond
+fix ts_check all check/timestep/gran ${ts_check_freq} 0.3 0.3
+
+run ${num_timesteps} # replace with  run X every Y "set atom * property/atom heatSource v_H" maybe
+
+
+# TODO: need to figure out what data i want. definitely bond data and velocity; also force? review west
+# I'll use coord numbers to keep track of fractures
+# I also need to figure out how to apply time varying forcing. could always do something really weird 
+# with velocity of something to get time
+
+# I should also probably run with restarts. say run "3 hours" and restart in case it crashes for the long runs
+# wit hdt = 0.01, 3 hrs = 1.08 * 10^6 timesteps; therefore 72 hour simulation = 26(ish) million timesteps
+# thats actually not crazy i regularly run 10 million. maybe just restart every 24 hrs to be safe. 
+
+# After getting workflow, need to repeat with smaller particles.
