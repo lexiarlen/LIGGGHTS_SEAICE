@@ -18,55 +18,97 @@ import pandas as pd
 import scipy.stats as stats
 import matplotlib.pyplot as plt
 import xarray as xr
+from scipy.spatial import cKDTree
 
-
-def fix_overlaps_2d(df, repo, max_iters = 300, percent_d_adj = 0.005):
+def update_growth_kdtree(df, df_bdy, growth_rate, bdy_radius, tol):
     """
-    Adjust diameters so that no two particles overlap. Before doing this, shrink the 
-    particle diameter by the bond_skin_thickness. By design, in the packing process,
-    particles are created too large by the bond_skin_thickness. 
-
-    df must have columns: ['x', 'y', 'd']
+    For each free particle, check (using cKDTree) if increasing its radius
+    by 'growth_rate' would cause overlap with any other free particle or boundary.
+    Returns a boolean array indicating which particles can grow.
     """
-    coords = df[['x', 'y']].to_numpy()
-    mean_d = df['d'].mean()
-    diam_adj = mean_d*percent_d_adj
-    overlaps_remaining = []
-    initial_overlaps = []
-    n = len(coords)
-    for iteration in range(max_iters):
-        n_overlaps_this_pass = 0
-        radii = 0.5 * df['d'].to_numpy()
-        for i in range(n):
-            distances = np.sqrt(np.sum((coords[i] - coords)**2, axis=1))
-            # Indices of all particles that overlap with particle i
-            overlap_indices = np.where((distances < (radii[i] + radii)) & (distances > 0))[0]
-            if overlap_indices.size > 0:
-                n_overlaps_this_pass += 1
-                if iteration == 0:
-                    max_overlap = 0
-                    for j in overlap_indices:
-                        overlap_amount = radii[i] + radii[j] - distances[j]
-                        max_overlap = np.maximum(max_overlap, overlap_amount)
-                    initial_overlaps.append(max_overlap)
-                df.loc[i+1, 'd'] -= diam_adj + 1e-5 # adjust diameter at index label i+1 = coords[i]
-        overlaps_remaining.append(n_overlaps_this_pass)
-        if n_overlaps_this_pass == 0:
-            print(f'[INFO] Converged at iteration # = {iteration}')
+    positions = df[['x', 'y']].to_numpy()
+    radii = df['radius'].to_numpy()
+    n = len(df)
+    can_grow = np.ones(n, dtype=bool)
+    
+    # build a KDTree for the current positions
+    tree = cKDTree(positions)
+    
+    for i in range(n):
+        new_r = radii[i] + growth_rate
+        # get neighboring particles within the radius new_r + max(radii).
+        indices = tree.query_ball_point(positions[i], new_r + np.max(radii))
+        for j in indices:
+            if i == j:
+                continue
+            d_ij = np.linalg.norm(positions[i] - positions[j])
+            # check if growth would cause overlap with neighbor j allowing “near touching” by using a small tolerance.
+            if d_ij <= (new_r + radii[j] - tol):
+                can_grow[i] = False
+                break
+        # check against boundary particles.
+        for _, bdy in df_bdy.iterrows():
+            d_bdy = np.linalg.norm(positions[i] - np.array([bdy['x'], bdy['y']]))
+            if d_bdy <= (new_r + bdy_radius - tol):
+                can_grow[i] = False
+                break
+    return can_grow
+
+def get_diameters(df, df_bdy, growth_rate = 100, bdy_radius = 1000, tol = 1e-5, min_growth_rate = 0.1):
+
+    # get radius
+    df['radius'] = df['d'] / 2.0
+
+    # (1) pre-processing: remove initial overlaps by shrinking by 1/2 * maximum overlap
+
+    # build a KDTree for the free particles
+    positions = df[['x', 'y']].to_numpy()
+    radii = df['radius'].to_numpy()
+    tree = cKDTree(positions)
+    delta_required = 0.0
+    # search for pairs with overlaps 2x the diameter
+    max_possible = np.max(radii) * 2
+    overlap_pairs = tree.query_pairs(r=max_possible)
+
+    for i, j in overlap_pairs:
+        d_ij = np.linalg.norm(positions[i] - positions[j])
+        overlap = (radii[i] + radii[j]) - d_ij
+        if overlap > 0:
+            delta_required = max(delta_required, overlap / 2)
+
+    if delta_required > 0:
+        shrink_amount = delta_required + tol  # add a small extra to be safe
+        print(f"Initial overlap detected. Shrinking all radii by {shrink_amount:.4f} m.")
+        df['radius'] = df['radius'] - shrink_amount
+        df['d'] = 2 * df['radius']
+    else:
+        print("No initial overlaps detected.")
+
+    # (2) iteratively grow particles until they touch or the growth rate is very small
+
+    while growth_rate > min_growth_rate:
+        grow_flags = update_growth_kdtree(df, df_bdy, growth_rate, bdy_radius, tol)
+        
+        if not np.any(grow_flags):
+            # if no particles can safely grow, reduce the growth rate.
+            growth_rate /= 2.0
+            print(f"Reducing growth rate to {growth_rate:.4f} m")
+        else:
+            # grow only the particles that can safely grow
+            df.loc[grow_flags, 'radius'] += growth_rate
+            print(f"Grew {grow_flags.sum()} particles by {growth_rate:.4f} m")
+        
+        # if no particle can grow and the step is small, break.
+        if not np.any(grow_flags) and growth_rate <= min_growth_rate:
             break
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(np.arange(1,len(overlaps_remaining)+1), overlaps_remaining)
-    ax.set_xlabel('Iteration #')
-    ax.set_ylabel('# Fixed Overlaps')
-    plt.savefig(os.path.join(repo, f'overlaps_{percent_d_adj}.jpg'), dpi=300, bbox_inches='tight')
-    np.save(os.path.join(repo, f'overlaps_{percent_d_adj}.npy'), np.array(overlaps_remaining))
-    np.save(os.path.join(repo, f'initial_overlaps_{percent_d_adj}.npy'), np.array(initial_overlaps))
+    df['d'] = 2 * df['radius']
+
     return df
 
 def get_line(xi, xf, yi, yf, d):
     """
-    computes x and y coordinates of particles along a line from (x_i, y_i) to 
+    Computes x and y coordinates of particles along a line from (x_i, y_i) to 
     (x_f, y_f) for particles of diameter size d.
     """
     lenx = xf - xi
@@ -88,7 +130,7 @@ def get_bdy_particles_coords(d, include_top_bot_boundaries=False):
     """
     # Convert diameter from m to km
     d_km = d / 1000.0
-    r_km = d_km / 2.0  + 0.25 # radius in km
+    r_km = d_km / 2.0 #+ 0.15    # radius in km
 
     # Define wall numbers
     wall_numbers = np.arange(1, 11)  # 1..10
@@ -177,12 +219,11 @@ def main():
     # Construct file paths
     basename = os.path.splitext(os.path.basename(original_fpath))[0]
     repo = os.path.dirname(original_fpath)
-    fixed_file = os.path.join(repo, f"{basename}_fixed.data")
-
+    fixed_file = os.path.join(repo, f"{basename}_fixed_by_dilation.data")
 
     # (1) Read original .data file
 
-    # read atom data until we hit velocities
+    # Read atom data until we hit velocities
     column_names = ['type', 'x', 'y', 'z', 'd', 'density']
     rows_to_skip = 21
     cutoff_line = None
@@ -196,15 +237,15 @@ def main():
                     skiprows=rows_to_skip, nrows=rows_to_read,
                     names=column_names)
 
-    # reformat dataframe so we're ready to read it out
+    # Reformat dataframe so we're ready to read it out
     df["id"] = range(1, len(df) + 1)
     df = df.set_index("id")
     df["bond_type"] = 1
 
     # (2) Set parameters to install bonds on fake atoms to allow successful import
     # These will be deleted upon import so overlap is ok
-    d = df['d'].iloc[1]               # set diameter of fake atoms to be that of the first atom
-    density = df['density'].iloc[1]   # set density of fake atoms to be that of the first atom
+    d = 2000               # set diameter of fake atoms to be that of the first atom
+    density = 920   # set density of fake atoms to be that of the first atom
 
     x0 = xhi/2
     y0 = yhi/2
@@ -213,7 +254,7 @@ def main():
     xtri = d * np.cos(60*np.pi/180) 
     ytri = d * np.sin(60*np.pi/180)
 
-    # (2) Get bdy particles
+    # (2) Get boundary particles
     mean_d = df['d'].mean() - bond_skin_thickness
     df_bdy = get_bdy_particles_coords(mean_d)
     num_bdy_particles = len(df_bdy['x'])
@@ -221,24 +262,23 @@ def main():
 
     # (3) Fix Overlaps
 
-    # 3.1 delete atoms at the very edge that got uplifted
+    # 3.1 Delete atoms at the very edge that got uplifted
     df = df[df['z'] <= -4000] # careful of hard coding here!!!! number from visual inspection in Ovito
     df.index = range(1, len(df) + 1) # reindex dataframe so that fix overlaps still works
 
-    # 3.2 run overlap code
+    # 3.2 Run dilation code
     df['d'] -= bond_skin_thickness # preliminary diameter adjustment
-    #df['z'] = np.zeros_like(df['z']) # set all z coordinates to 0
 
-    print(f"[INFO] Original mean diameter {mean_d} m.")
-
-    df = fix_overlaps_2d(df, repo)
+    # Note: the new version of fix_overlaps_2d now accepts df_bdy so that interior particles are
+    # adjusted to avoid overlaps with both other interior and the boundary particles.
+    df = get_diameters(df, df_bdy)
     num_atoms = len(df) + num_bdy_particles
     print(f"[INFO] New mean diameter {df['d'].mean()} m, min diameter = {df['d'].min()}, and max diameter = {df['d'].max()}.")
 
     # Save a figure of these stats
     mean_val = df['d'].mean()
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.hist(df['d'], bins=20, color='blue', edgecolor='black', alpha=0.7)
+    ax.hist(df['d'], bins=16, color='blue', edgecolor='black', alpha=0.7)
     ax.axvline(mean_val, color='red', linestyle='--', linewidth=2,
             label=f'Mean: {mean_val:.2f}')
     ax.set_xlabel('d')
@@ -246,7 +286,6 @@ def main():
     ax.set_title('Histogram of Diameters')
     ax.legend()
     plt.savefig(os.path.join(repo, 'histogram.jpg'), dpi=300, bbox_inches='tight')
-
 
     # (3) Build new .data content
     header_info = f"""header line input data
@@ -269,10 +308,10 @@ Atoms
     # Add the boundary particles to the atoms section
     for index, row in df_bdy.iterrows():
         # format: id atom_type x y z d rho bond_type?
-        atom_line = f"{index} 2 {row['x']} {row['y']} 0 {mean_d} 920 1" # hard coded density be careful!!
+        atom_line = f"{index} 2 {row['x']} {row['y']} 0 {mean_d} 920 1" # hard coded density; be careful!!
         output_lines.append(atom_line)
 
-    # Generate the atoms section
+    # Generate the atoms section for the interior particles
     for index, row in df.iterrows():
         # format: id atom_type x y z d rho bond_type?
         atom_line = f"{index+num_bdy_particles} 1 {row['x']} {row['y']} 0 {row['d']} {row['density']} 1"

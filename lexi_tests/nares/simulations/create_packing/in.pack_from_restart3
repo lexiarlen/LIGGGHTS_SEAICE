@@ -5,12 +5,12 @@ variable true_mean_diameter      equal 2000         # [m] max particle diameter
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
 variable bond_damp_val           equal 0.0        # [-] don't use bond damping
 variable rho_i                   equal 920.0      # [kg/m3] ice density
-variable elastic_modulus         equal 1e8      # [Pa]
+variable elastic_modulus         equal 1e9      # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
 variable normal_strength         equal 5.0e5      # [Pa] bond critical normal strength
 variable shear_strength          equal 5.0e5      # [Pa] bond critical shear strength 
 variable coeff_rest              equal 0.1        # [-] particle particle
-variable mu                      equal 0.3        # [-] particle particle friction
+variable mu                      equal 0.2        # [-] particle particle friction
 variable wall_friction           equal 0.5        # [-] wall wall friction  
 variable poly                    equal 0.1        # [%] polydispersity    
 variable bs_multiplier           equal 0.001      # [-] bond skin multiplier           
@@ -55,7 +55,7 @@ variable dragy                  atom v_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vy)
 variable dragz                  atom v_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vz)
 
 # Numerics & output
-variable dt                      equal 0.005              
+variable dt                      equal 0.0005              
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
@@ -71,7 +71,7 @@ processors * * *
 read_restart restarts/packing_attempt3.restart
 
 # Define the insertion region
-region ins_reg1 block 20e3 100e3 280e3 320e3 ${ir_zi} ${ir_zf} units box
+region ins_reg1 block 20e3 100e3 280e3 350e3 ${ir_zi} ${ir_zf} units box
 
 communicate single vel yes              # ghost particles are given position and velocity information
 neighbor 450 bin                        # skin distance to specify bin size for neighbor list generation
@@ -93,15 +93,34 @@ fix m4 all property/global coefficientFriction peratomtypepair 2 ${mu} ${wall_fr
 # Set bond coefficients for a simple bond (no holes) with properties below; see Notion for more details 
 bond_coeff 1 1 0 ${elastic_modulus} ${shear_modulus} ${bond_damp_type} ${bond_damp_val} 1 ${normal_strength} ${shear_strength}
 
+# # Timestep & insertion
+timestep ${dt}    
+#fix ts_check all check/timestep/gran 1000 0.2 0.2                                                  
+run 1
+
+thermo 5000000                                             # set output frequency for output for screen
+thermo_style custom step numbonds atoms time dt                 # custom pringting to screen
+thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
+
+dump dmp all custom 500000 post4/dump*.liggghts id x y z radius vx vy vz
+dump_modify dmp pad 10 sort id first yes   
+
+# # Insert fjord & some walls
+fix mesh_fjord all mesh/surface file meshes/corrected_fjord_packing.stl type 2 scale 1000 move 0 0 -5e3
+fix meshwalls all wall/gran model hertz tangential history mesh n_meshes 1 meshes mesh_fjord
+
+
+fix int all nve/sphere
+fix gravi_yz all gravity 10 vector 0 -1 -10 # prevent ridging 
+
+fix fdrag all addforce v_dragx v_dragy v_dragz # added x-y drag to accelerate packing
+
+run 3000000
+unfix gravi_yz
+
 fix pts1 all particletemplate/sphere 49979687 atom_type 1 density constant ${rho_i} radius constant ${max_radius}
 fix pdd1 all particledistribution/discrete 200237 1 pts1 1.0
 fix ins all insert/pack seed 409709 distributiontemplate pdd1 insert_every once overlapcheck yes volumefraction_region ${phi} region ins_reg1
-
-# # Timestep & insertion
-timestep ${dt}    
-fix ts_check all check/timestep/gran 1000 0.2 0.2                                                  
-run 1
-
 
 # Implement {poly}% polydispersity by randomly assigning new diameters looping through each grain; this only applies to bottom grains?
 group        all_atoms type 1
@@ -114,36 +133,16 @@ variable	iter loop ${num_grains}
 next		iter
 jump		SELF loop_through_each_grain
 
-# # Insert fjord & some walls
-fix mesh_fjord all mesh/surface file meshes/corrected_fjord_packing.stl type 2 scale 1000 move 0 0 -5e3
-fix meshwalls all wall/gran model hertz tangential history mesh n_meshes 1 meshes mesh_fjord
-
-
-fix int all nve/sphere
 fix gravi_z all gravity 10 vector 0 0 -5 
-fix fdrag all addforce v_dragx v_dragy v_dragz # added x-y drag to accelerate packing
-
 
 # Dump setup
-
-thermo 5000000                                             # set output frequency for output for screen
-thermo_style custom step numbonds atoms time dt                 # custom pringting to screen
-thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
-
-dump fjord_dump all mesh/stl 1 post/dump*.stl
-run 1
-undump fjord_dump
-
-dump dmp all custom 50000 post/dump*.liggghts id x y z radius vx vy vz
-dump_modify dmp pad 10 sort id first yes   
-
-run 20000
+run 40000
 
 unfix gravi_z
-fix gravi_yz all gravity 10 vector 0 -1 -10 # prevent ridging 
+fix gravi_yz2 all gravity 10 vector 0 -1 -10 # prevent ridging 
 fix confine_top all wall/gran model hertz tangential history primitive type 2 zplane -2.8e3
 
-run 500000
+run 6000000
 
 write_restart restarts/packing_attempt4.restart
 
@@ -151,10 +150,10 @@ write_restart restarts/packing_attempt4.restart
 region reg2delete block 0 120e3 241e3 400e3 -5e3 2e3 
 delete_atoms region reg2delete
 
-fix another_wall all wall/gran model hertz tangential history primitive type 2 yplane 241e3
-unfix gravi_yz
-fix gravi_z all gravity 10 vector 0 0 -10
-fix zdrag all addforce 0 0 v_dragz # added x-y drag to accelerate packing
-run 200000
+# fix another_wall all wall/gran model hertz tangential history primitive type 2 yplane 241e3
+# unfix gravi_yz2
+# fix gravi_z all gravity 10 vector 0 0 -10
+# fix zdrag all addforce 0 0 v_dragz # added x-y drag to accelerate packing
+# run 600000
 
-write_data data/packing2km.data
+write_data data/packing2km_stiff.data

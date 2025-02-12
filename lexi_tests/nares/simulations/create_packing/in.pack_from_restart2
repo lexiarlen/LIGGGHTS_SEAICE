@@ -5,7 +5,7 @@ variable true_mean_diameter      equal 2000         # [m] max particle diameter
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
 variable bond_damp_val           equal 0.0        # [-] don't use bond damping
 variable rho_i                   equal 920.0      # [kg/m3] ice density
-variable elastic_modulus         equal 1e8      # [Pa]
+variable elastic_modulus         equal 1e9      # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
 variable normal_strength         equal 5.0e5      # [Pa] bond critical normal strength
 variable shear_strength          equal 5.0e5      # [Pa] bond critical shear strength 
@@ -47,7 +47,7 @@ variable dragy                  atom v_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vy)
 variable dragz                  atom v_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vz)
 
 # Numerics & output
-variable dt                      equal 0.005              
+variable dt                      equal 0.0005              
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
@@ -126,15 +126,15 @@ dump fjord_dump all mesh/stl 1 post/dump*.stl
 run 1
 undump fjord_dump
 
-dump dmp all custom 100000 post/dump*.liggghts id x y z radius vx vy vz
+dump dmp all custom 500000 post3/dump*.liggghts id x y z radius vx vy vz
 dump_modify dmp pad 10 sort id first yes   
 
-run 20000
+run 40000
 
 unfix gravi_z
 fix gravi_yz all gravity 10 vector 0 -1 -10 # prevent ridging 
 fix confine_top all wall/gran model hertz tangential history primitive type 2 zplane -2.8e3
 
-run 1000000
+run 4500000
 
 write_restart restarts/packing_attempt3.restart

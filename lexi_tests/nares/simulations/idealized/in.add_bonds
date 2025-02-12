@@ -4,8 +4,8 @@ variable bond_damp_val           equal 0.0        # [-] don't use bond damping
 variable rho_i                   equal 920.0      # [kg/m3] ice density
 variable elastic_modulus         equal 5e8        # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
-variable normal_strength         equal 50e3       # [Pa] bond critical normal strength
-variable shear_strength          equal 100e3      # [Pa] bond critical shear strength 
+variable normal_strength         equal 5e3       # [Pa] bond critical normal strength
+variable shear_strength          equal 10e3      # [Pa] bond critical shear strength 
 variable coeff_rest_pp           equal 0.15       # [-] particle particle
 variable coeff_rest_pw           equal 0.1        # [-] particle wall
 variable mu                      equal 0.6        # [-] particle particle friction
@@ -13,9 +13,10 @@ variable wall_friction           equal 0.9        # [-] wall wall friction
 variable bs_multiplier           equal 0.001      # [-] bond skin multiplier 
 variable 99q_diameter            equal 1982       # 99th quartile particle diameter, max = 2082
 variable mean_diameter           equal 1747
+variable max_diameter            equal 2200
 
 # Derived Properties & Parameters
-variable bond_skin               equal (1+${bs_multiplier})*${99q_diameter}    # [m] 0.1% of the max diameter; will subtract this quantity first when doing the packing fix
+variable bond_skin               equal (1+${bs_multiplier})*${max_diameter}    # [m] 0.1% of the max diameter; will subtract this quantity first when doing the packing fix
 variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
 variable r_o                     equal 4/(PI*${mean_diameter})    
 
@@ -34,7 +35,7 @@ hard_particles yes
 processors * * *                        
 
 # Domain
-read_data data/packing2km.data 
+read_data data/packing2km_fixed2.data 
 
 # Neighbors
 communicate single vel yes              # ghost particles are given position and velocity information
@@ -67,6 +68,9 @@ delete_atoms group atoms_2_delete
 # Timestep & insertion
 timestep ${dt}
 run 0
+
+group walls type 2
+group active type 1
 
 # Therm config
 thermo 1                                             # set output frequency for output for screen

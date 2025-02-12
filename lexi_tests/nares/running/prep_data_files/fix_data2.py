@@ -19,44 +19,89 @@ import scipy.stats as stats
 import matplotlib.pyplot as plt
 import xarray as xr
 
-
-def fix_overlaps_2d(df, repo, max_iters = 300, percent_d_adj = 0.005):
+def fix_overlaps_2d(df, df_bdy, repo, max_iters=300, percent_d_adj=0.001):
     """
-    Adjust diameters so that no two particles overlap. Before doing this, shrink the 
-    particle diameter by the bond_skin_thickness. By design, in the packing process,
-    particles are created too large by the bond_skin_thickness. 
-
-    df must have columns: ['x', 'y', 'd']
+    Adjust diameters of the interior particles (df) so that no two particles overlap,
+    taking into account the fixed boundary particles (df_bdy). Both dataframes must have
+    columns 'x' and 'y'; the interior particles must have a 'd' column (their current
+    diameter), and the boundary particles will be assigned a fixed diameter (if not already
+    present). Only the interior particle diameters are adjusted.
     """
-    coords = df[['x', 'y']].to_numpy()
+    # Ensure boundary particles have a diameter value.
+    if 'd' not in df_bdy.columns:
+        # Here we use the mean diameter of the interior particles (which has already been
+        # reduced by bond_skin_thickness) as the fixed diameter for the boundary particles.
+        fixed_d = df['d'].mean()
+        df_bdy = df_bdy.copy()
+        df_bdy['d'] = fixed_d
+
+    # Extract coordinate and diameter arrays for interior and boundary particles.
+    interior_coords = df[['x', 'y']].to_numpy()
+    interior_d = df['d'].to_numpy()   # these will be adjusted
+    bdy_coords = df_bdy[['x', 'y']].to_numpy()
+    bdy_d = df_bdy['d'].to_numpy()
+
     mean_d = df['d'].mean()
-    diam_adj = mean_d*percent_d_adj
+    diam_adj = mean_d * percent_d_adj
+
     overlaps_remaining = []
     initial_overlaps = []
-    n = len(coords)
+    n_int = len(interior_coords)
+    
     for iteration in range(max_iters):
         n_overlaps_this_pass = 0
-        radii = 0.5 * df['d'].to_numpy()
-        for i in range(n):
-            distances = np.sqrt(np.sum((coords[i] - coords)**2, axis=1))
-            # Indices of all particles that overlap with particle i
-            overlap_indices = np.where((distances < (radii[i] + radii)) & (distances > 0))[0]
-            if overlap_indices.size > 0:
+        for i in range(n_int):
+            # Get the coordinates and current radius for interior particle i.
+            xi, yi = interior_coords[i]
+            ri = 0.5 * interior_d[i]
+
+            # Overlap check with other interior particles.
+            diff_int = interior_coords - np.array([xi, yi])
+            distances_int = np.sqrt(np.sum(diff_int**2, axis=1))
+            # Exclude self (distance = 0) and consider overlap if:
+            #   distance < (ri + 0.5*other's diameter)
+            overlap_int = (distances_int < (ri + 0.5 * interior_d)) & (distances_int > 0)
+            
+            # Overlap check with boundary particles.
+            diff_bdy = bdy_coords - np.array([xi, yi])
+            distances_bdy = np.sqrt(np.sum(diff_bdy**2, axis=1))
+            overlap_bdy = distances_bdy < (ri + 0.5 * bdy_d)
+            
+            # If an overlap is detected with either set...
+            if np.any(overlap_int) or np.any(overlap_bdy):
                 n_overlaps_this_pass += 1
+                # For diagnostic purposes record the maximum overlap on the first iteration.
                 if iteration == 0:
-                    max_overlap = 0
-                    for j in overlap_indices:
-                        overlap_amount = radii[i] + radii[j] - distances[j]
-                        max_overlap = np.maximum(max_overlap, overlap_amount)
-                    initial_overlaps.append(max_overlap)
-                df.loc[i+1, 'd'] -= diam_adj + 1e-5 # adjust diameter at index label i+1 = coords[i]
+                    max_overlap_val = 0
+                    # Check interior overlaps.
+                    for j, flag in enumerate(overlap_int):
+                        if flag:
+                            overlap_amount = (ri + 0.5 * interior_d[j]) - distances_int[j]
+                            if overlap_amount > max_overlap_val:
+                                max_overlap_val = overlap_amount
+                    # Check boundary overlaps.
+                    for j, flag in enumerate(overlap_bdy):
+                        if flag:
+                            overlap_amount = (ri + 0.5 * bdy_d[j]) - distances_bdy[j]
+                            if overlap_amount > max_overlap_val:
+                                max_overlap_val = overlap_amount
+                    initial_overlaps.append(max_overlap_val)
+                # Adjust the diameter of interior particle i.
+                interior_d[i] -= (diam_adj + 1e-5)
+                # Prevent the diameter from becoming negative.
+                if interior_d[i] < 1e-10:
+                    interior_d[i] = 1e-10
         overlaps_remaining.append(n_overlaps_this_pass)
         if n_overlaps_this_pass == 0:
             print(f'[INFO] Converged at iteration # = {iteration}')
             break
 
+    # Update the interior particle dataframe with the adjusted diameters.
+    df['d'] = interior_d
+
+    # Save the diagnostic plot and data.
     fig, ax = plt.subplots(figsize=(8, 6))
-    ax.plot(np.arange(1,len(overlaps_remaining)+1), overlaps_remaining)
+    ax.plot(np.arange(1, len(overlaps_remaining)+1), overlaps_remaining)
     ax.set_xlabel('Iteration #')
     ax.set_ylabel('# Fixed Overlaps')
     plt.savefig(os.path.join(repo, f'overlaps_{percent_d_adj}.jpg'), dpi=300, bbox_inches='tight')
@@ -66,7 +111,7 @@ def fix_overlaps_2d(df, repo, max_iters = 300, percent_d_adj = 0.005):
 
 def get_line(xi, xf, yi, yf, d):
     """
-    computes x and y coordinates of particles along a line from (x_i, y_i) to 
+    Computes x and y coordinates of particles along a line from (x_i, y_i) to 
     (x_f, y_f) for particles of diameter size d.
     """
     lenx = xf - xi
@@ -88,7 +133,7 @@ def get_bdy_particles_coords(d, include_top_bot_boundaries=False):
     """
     # Convert diameter from m to km
     d_km = d / 1000.0
-    r_km = d_km / 2.0  + 0.25 # radius in km
+    r_km = d_km / 2.0 + 0.15    # radius in km
 
     # Define wall numbers
     wall_numbers = np.arange(1, 11)  # 1..10
@@ -177,12 +222,11 @@ def main():
     # Construct file paths
     basename = os.path.splitext(os.path.basename(original_fpath))[0]
     repo = os.path.dirname(original_fpath)
-    fixed_file = os.path.join(repo, f"{basename}_fixed.data")
-
+    fixed_file = os.path.join(repo, f"{basename}_fixed2.data")
 
     # (1) Read original .data file
 
-    # read atom data until we hit velocities
+    # Read atom data until we hit velocities
     column_names = ['type', 'x', 'y', 'z', 'd', 'density']
     rows_to_skip = 21
     cutoff_line = None
@@ -196,7 +240,7 @@ def main():
                     skiprows=rows_to_skip, nrows=rows_to_read,
                     names=column_names)
 
-    # reformat dataframe so we're ready to read it out
+    # Reformat dataframe so we're ready to read it out
     df["id"] = range(1, len(df) + 1)
     df = df.set_index("id")
     df["bond_type"] = 1
@@ -213,7 +257,7 @@ def main():
     xtri = d * np.cos(60*np.pi/180) 
     ytri = d * np.sin(60*np.pi/180)
 
-    # (2) Get bdy particles
+    # (2) Get boundary particles
     mean_d = df['d'].mean() - bond_skin_thickness
     df_bdy = get_bdy_particles_coords(mean_d)
     num_bdy_particles = len(df_bdy['x'])
@@ -221,17 +265,18 @@ def main():
 
     # (3) Fix Overlaps
 
-    # 3.1 delete atoms at the very edge that got uplifted
+    # 3.1 Delete atoms at the very edge that got uplifted
     df = df[df['z'] <= -4000] # careful of hard coding here!!!! number from visual inspection in Ovito
     df.index = range(1, len(df) + 1) # reindex dataframe so that fix overlaps still works
 
-    # 3.2 run overlap code
+    # 3.2 Run overlap code
     df['d'] -= bond_skin_thickness # preliminary diameter adjustment
-    #df['z'] = np.zeros_like(df['z']) # set all z coordinates to 0
 
     print(f"[INFO] Original mean diameter {mean_d} m.")
 
-    df = fix_overlaps_2d(df, repo)
+    # Note: the new version of fix_overlaps_2d now accepts df_bdy so that interior particles are
+    # adjusted to avoid overlaps with both other interior and the boundary particles.
+    df = fix_overlaps_2d(df, df_bdy, repo)
     num_atoms = len(df) + num_bdy_particles
     print(f"[INFO] New mean diameter {df['d'].mean()} m, min diameter = {df['d'].min()}, and max diameter = {df['d'].max()}.")
 
@@ -246,7 +291,6 @@ def main():
     ax.set_title('Histogram of Diameters')
     ax.legend()
     plt.savefig(os.path.join(repo, 'histogram.jpg'), dpi=300, bbox_inches='tight')
-
 
     # (3) Build new .data content
     header_info = f"""header line input data
@@ -269,10 +313,10 @@ Atoms
     # Add the boundary particles to the atoms section
     for index, row in df_bdy.iterrows():
         # format: id atom_type x y z d rho bond_type?
-        atom_line = f"{index} 2 {row['x']} {row['y']} 0 {mean_d} 920 1" # hard coded density be careful!!
+        atom_line = f"{index} 2 {row['x']} {row['y']} 0 {mean_d} 920 1" # hard coded density; be careful!!
         output_lines.append(atom_line)
 
-    # Generate the atoms section
+    # Generate the atoms section for the interior particles
     for index, row in df.iterrows():
         # format: id atom_type x y z d rho bond_type?
         atom_line = f"{index+num_bdy_particles} 1 {row['x']} {row['y']} 0 {row['d']} {row['density']} 1"

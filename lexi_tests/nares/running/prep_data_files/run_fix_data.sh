@@ -18,8 +18,8 @@ read -p "Bond skin thickness? (press Enter to use default = 0.001*2200): " bond_
 # Check if bond_skin_thickness is provided
 if [[ -z "$bond_skin_thickness" ]]; then
     # Call Python script without bond_skin_thickness
-    python fix_data.py "$xlo" "$xhi" "$ylo" "$yhi" "$repo"
+    python fix_data3.py "$xlo" "$xhi" "$ylo" "$yhi" "$repo"
 else
     # Call Python script with bond_skin_thickness
-    python fix_data.py "$xlo" "$xhi" "$ylo" "$yhi" "$repo" "$bond_skin_thickness"
+    python fix_data3.py "$xlo" "$xhi" "$ylo" "$yhi" "$repo" "$bond_skin_thickness"
 fi

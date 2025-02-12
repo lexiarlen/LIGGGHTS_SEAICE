@@ -72,10 +72,10 @@ if [ ! -f "$base_path/$post_dir" ]; then
     python3 dump2nc.py "$base_path/$post_dir" "$output_dir"
 
     # Step 7: remove post directory
-    rm -rf "$base_path/$post_dir"
+    #rm -rf "$base_path/$post_dir"
     
     # Step 8: Run nc2figs.py
-    #python3 nc2figs.py --output-dir "$output_dir" --dt 0.000001
+    python3 nc2figs.py --output-dir "$output_dir" --dt 0.01
 else 
     echo "Skipping processing, simulation error."
 fi
