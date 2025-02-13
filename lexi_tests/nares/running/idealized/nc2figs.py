@@ -17,6 +17,7 @@ from scipy.sparse.csgraph import connected_components
 import random
 import argparse
 from scipy.sparse import load_npz
+import matplotlib.ticker as ticker
 import glob
 
 # backend stuff
@@ -163,6 +164,8 @@ def plot_initial_coord_nums(ds, output_directory):
 #     fpath = os.path.join(output_directory, 'coordnum.gif')
 #     ani.save(fpath, writer='Pillow', fps=2)
 
+def m_to_km(x, pos):
+    return f"{x/1000:g}"  # Remove trailing zeros if needed
 
 
 def create_bond_broken_animation(ds, output_directory, dt, frame_skip_value=1):
@@ -194,8 +197,15 @@ def create_bond_broken_animation(ds, output_directory, dt, frame_skip_value=1):
 
     ax.set_xlim(x_min - padding, x_max + padding)
     ax.set_ylim(y_min - padding, y_max + padding)
+
+    formatter = ticker.FuncFormatter(m_to_km)
+    ax.xaxis.set_major_formatter(formatter)
+    ax.yaxis.set_major_formatter(formatter)
+
+    # Add labels for the axes indicating kilometers.
+    ax.set_xlabel("[km]")
+    ax.set_ylabel("[km]")
     ax.set_aspect('equal', 'box')
-    ax.grid()
 
     # Create a scalar mappable for bonds broken.
     # We fix the normalization to 0 to 5 (i.e. maximum 5 bonds broken).
@@ -399,7 +409,7 @@ def plot_velocity_transects(ds_a, dt, timesteps, output_directory):
         ax.axvline(0, color = 'gray', ls = '--')
         ax.plot(ux_means[1:-1], len_along_fjord[1:-1]*1e-3, label = r'$V_x$', color = 'k')
         ax.plot(uy_means[1:-1], len_along_fjord[1:-1]*1e-3, label = r'$V_y$', color = 'r')
-        ax.set_ylim(-50e3, 250e3)
+        ax.set_ylim(-50, 250)
         min_val = np.minimum(np.nanmin(ux_means), np.nanmin(uy_means))
         if min_val != 0:
             ax.set_xlim(min_val , -1*min_val)

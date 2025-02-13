@@ -6,8 +6,8 @@ variable elastic_modulus         equal 5e8        # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
 variable normal_strength         equal 5e3       # [Pa] bond critical normal strength
 variable shear_strength          equal 10e3      # [Pa] bond critical shear strength 
-variable coeff_rest_pp           equal 0.15       # [-] particle particle
-variable coeff_rest_pw           equal 0.1        # [-] particle wall
+variable coeff_rest_pp           equal 0.3       # [-] particle particle
+variable coeff_rest_pw           equal 0.3        # [-] particle wall
 variable mu                      equal 0.6        # [-] particle particle friction
 variable wall_friction           equal 0.9        # [-] wall wall friction   
 variable bs_multiplier           equal 0.001      # [-] bond skin multiplier 
@@ -79,15 +79,15 @@ thermo_modify lost warn norm no                       # ignore lost atoms and do
 
 ### ----------------------------------- bond grains ---------------------------------- ###
 
-fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6        # nevery itype jtype bondskin btype newperts
+# fix bondcr all bond/create/gran 1 1 1 ${bond_skin} 1 6        # nevery itype jtype bondskin btype newperts
 
-fix dtBond all check/timestep/bond 1 0.3                       # check the time step for the bond
+# fix dtBond all check/timestep/bond 1 0.3                       # check the time step for the bond
 
 run 1                                                          # bond grains
 
-unfix dtBond                                                   # stop checking bond timestep (not doing anymore bonding)
+# unfix dtBond                                                   # stop checking bond timestep (not doing anymore bonding)
 
-fix_modify bondcr every 0                                      # do not create new bonds after this line
+# fix_modify bondcr every 0                                      # do not create new bonds after this line
 
 
 ### ----------------------------------- run & output ---------------------------------- ###
