@@ -19,23 +19,25 @@ import scipy.stats as stats
 import matplotlib.pyplot as plt
 import xarray as xr
 
-def fix_overlaps_2d(df, repo, max_iters = 300, ini_d_adj = 0.01, lr = 0.7):
+
+def fix_overlaps_2d(df, repo, max_iters = 2000, ini_d_adj = 0.01, lr = 0.8):
     """
     Adjust diameters so that no two particles overlap. Before doing this, shrink the 
     particle diameter by the bond_skin_thickness. By design, in the packing process,
     particles are created too large by the bond_skin_thickness. 
 
-    df must have columns: ['x', 'y', 'd']
+    df must have columns: ['x', 'y', 'd', 'type']
     """
+    # TODO: modify to make only adjust diameters for type 2 partilce
     # initial parameters
     coords = df[['x', 'y']].to_numpy()
     mean_d = df['d'].mean()
+    particle_types = df['type'].to_numpy()
     diam_adj = mean_d*ini_d_adj
     overlaps_remaining = []
 
     # dynamic growth rate stuff
     gradient_flag=False
-    n_atoms = len(df)
     min_adj = 1
 
     n = len(coords)
@@ -54,7 +56,7 @@ def fix_overlaps_2d(df, repo, max_iters = 300, ini_d_adj = 0.01, lr = 0.7):
             distances = np.sqrt(np.sum((coords[i] - coords)**2, axis=1))
             # Indices of all particles that overlap with particle i
             overlap_indices = np.where((distances < (radii[i] + radii)) & (distances > 0))[0]
-            if overlap_indices.size > 0:
+            if (overlap_indices.size > 0) and (particle_types[i] == 1): # if overlap and interior particle
                 n_overlaps_this_pass += 1
                 df.loc[i+1, 'd'] -= diam_adj + 1e-5 # adjust diameter at index label i+1 = coords[i]
         overlaps_remaining.append(n_overlaps_this_pass)
@@ -66,6 +68,7 @@ def fix_overlaps_2d(df, repo, max_iters = 300, ini_d_adj = 0.01, lr = 0.7):
     ax.grid()
     ax.set_xlabel('Iteration #')
     ax.set_ylabel('# Fixed Overlaps')
+    plt.show()
     plt.savefig(os.path.join(repo, f'overlaps_newfunc_{ini_d_adj}.jpg'), dpi=300, bbox_inches='tight')
     return df
 
@@ -93,7 +96,7 @@ def get_bdy_particles_coords(d, density, include_top_bot_boundaries=False):
     """
     # Convert diameter from m to km
     d_km = d / 1000.0
-    r_km = d_km / 2.0 # radius in km
+    r_km = d_km / 2.0 + 0.1 # radius in km
 
     # Define wall numbers
     wall_numbers = np.arange(1, 11)  # 1..10
@@ -127,8 +130,10 @@ def get_bdy_particles_coords(d, density, include_top_bot_boundaries=False):
         xf = ds.x_f.sel(wall=w).item()
         yi = ds.y_i.sel(wall=w).item()
         yf = ds.y_f.sel(wall=w).item()
+
         # 1) get the "center line" coordinates spaced by 'd_km'
         x_line, y_line = get_line(xi, xf, yi, yf, d_km)
+
         # 2) compute the direction vector and length
         dx = xf - xi
         dy = yf - yi
@@ -136,24 +141,23 @@ def get_bdy_particles_coords(d, density, include_top_bot_boundaries=False):
         if length == 0:
             # check if wall length is degenerate
             continue
-        # 3) Get normals
+
+        # 3) shift by the radius (km) so that bdy particles are outside fjord bdy
         nx =  dy / length  
-        ny = -dx / length  
-        # 4) shift by the radius (km) so that bdy particles are outside fjord bdy
+        ny = -dx / length 
         x_vals = x_line - r_km * nx
         y_vals = y_line - r_km * ny
-        # Delete overlapping particles at corners; will still have overlap if wall length % diameter != 0
-        # This is ok because these boundary particles will not be integrated
         x_vals = x_vals[1:]
         y_vals = y_vals[1:]
-        # Accumulate
+
         all_x.extend(x_vals)
         all_y.extend(y_vals)
 
-    # Fix units
+    # fix units
     all_x = np.array(all_x)*1e3
     all_y = np.array(all_y)*1e3
-    # Create a DataFrame
+
+    # create a dataframe
     df_bdy = pd.DataFrame({"x": all_x, "y": all_y})
     df_bdy["id"] = range(1, len(df_bdy) + 1)
     df_bdy = df_bdy.set_index("id")

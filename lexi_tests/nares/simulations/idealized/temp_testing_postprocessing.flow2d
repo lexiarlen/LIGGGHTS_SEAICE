@@ -49,7 +49,7 @@ variable num_dumps               equal 100
 variable num_timesteps           equal floor(${run_time}/${dt})
 variable dump_freq               equal floor(${num_timesteps}/${num_dumps})
 variable ts_check_freq           equal 6000
-variable post_dir                string "post"
+variable post_dir string post_testing_postprocessing
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
@@ -63,7 +63,7 @@ hard_particles yes
 processors 1 3 1                        
 
 # Domain
-read_restart restarts/flow48_2d.restart
+read_restart restarts/testing_postprocessing.restart
 
 # Neighbors
 communicate single vel yes              # ghost particles are given position and velocity information
