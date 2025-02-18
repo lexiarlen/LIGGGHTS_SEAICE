@@ -55,7 +55,7 @@ variable dragy                  atom v_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vy)
 variable dragz                  atom v_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vz)
 
 # Numerics & output
-variable dt                      equal 0.0005              
+variable dt                      equal 0.005              
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
@@ -115,7 +115,7 @@ fix gravi_yz all gravity 10 vector 0 -1 -10 # prevent ridging
 
 fix fdrag all addforce v_dragx v_dragy v_dragz # added x-y drag to accelerate packing
 
-run 3000000
+run 300000
 unfix gravi_yz
 
 fix pts1 all particletemplate/sphere 49979687 atom_type 1 density constant ${rho_i} radius constant ${max_radius}
@@ -123,15 +123,15 @@ fix pdd1 all particledistribution/discrete 200237 1 pts1 1.0
 fix ins all insert/pack seed 409709 distributiontemplate pdd1 insert_every once overlapcheck yes volumefraction_region ${phi} region ins_reg1
 
 # Implement {poly}% polydispersity by randomly assigning new diameters looping through each grain; this only applies to bottom grains?
-group        all_atoms type 1
-variable     num_grains equal count(all_atoms)
+# group        all_atoms type 1
+# variable     num_grains equal count(all_atoms)
 
-label		loop_through_each_grain
-variable	iter loop ${num_grains}
-   variable	modifiedDiameter equal random(v_min_diameter,v_max_diameter,3124127)
-   set	 	atom ${iter} diameter ${modifiedDiameter}
-next		iter
-jump		SELF loop_through_each_grain
+# label		loop_through_each_grain
+# variable	iter loop ${num_grains}
+#    variable	modifiedDiameter equal random(v_min_diameter,v_max_diameter,3124127)
+#    set	 	atom ${iter} diameter ${modifiedDiameter}
+# next		iter
+# jump		SELF loop_through_each_grain
 
 fix gravi_z all gravity 10 vector 0 0 -5 
 

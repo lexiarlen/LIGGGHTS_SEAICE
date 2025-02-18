@@ -1,7 +1,7 @@
 # Material Properties 
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
 variable bond_damp_val           equal 0.0        # [-] don't use bond damping
-variable rho_i                   equal 920.0      # [kg/m3] ice density
+variable rho_i_2d                equal 920.0      # [kg/m3] ice density
 variable elastic_modulus         equal 1e7        # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
 variable normal_strength         equal 1e6       # [Pa] bond critical normal strength; material strength always less
@@ -13,12 +13,13 @@ variable wall_friction           equal 0.9        # [-] wall wall friction
 variable bs_multiplier           equal 0.001      # [-] bond skin multiplier 
 variable 99q_diameter            equal 1982       # 99th quartile particle diameter, max = 2082
 variable mean_diameter           equal 1747
-variable max_diameter            equal 2700
+variable max_diameter            equal 2500
 
 # Derived Properties & Parameters
 variable bond_skin               equal (1+${bs_multiplier})*${max_diameter}    # [m] 0.1% of the max diameter; will subtract this quantity first when doing the packing fix
 variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
-variable r_o                     equal 4/(PI*${mean_diameter})    
+variable r_o                     equal 4/(PI*${mean_diameter})   
+variable rho_i                   atom  3*${rho_i_2d}/(4*r)
 
 # Numerics & output
 variable dt                      equal 0.001              
@@ -26,8 +27,7 @@ variable dt                      equal 0.001
 ### ----------------------------------- build simulation ----------------------------------- ###
 
 # Preliminaries
-units si   
-dimension 2                                                             
+units si                                                              
 atom_style hybrid granular bond/gran n_bondtypes 1 bonds_per_atom 6    
 atom_modify map array sort 0 0                                            
 newton off                                                              
@@ -92,4 +92,4 @@ fix_modify bondcr every 0                                      # do not create n
 
 ### ----------------------------------- run & output ---------------------------------- ###
 
-write_restart restarts/2kmfloes.restart
+write_restart restarts/2kmfloes3d.restart

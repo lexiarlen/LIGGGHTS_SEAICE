@@ -132,7 +132,8 @@ def process_atom_dump_file(filepath: os.PathLike):
 
 
 def save_atom_ds_and_final_graph(post_dir: os.PathLike, atom_files: str, bond_files: str,
-                             atom_ds_output_path: os.PathLike, bond_graph_output_path: os.PathLike):
+                             atom_ds_output_path: os.PathLike, bond_graph_output_path: os.PathLike,
+                             n: int):
     """
     Process atom and bond dump files, compute coordination numbers from bond files, and add them
     as a new variable to the atom dataset. For each timestep, the coordination number for an atom is
@@ -143,6 +144,7 @@ def save_atom_ds_and_final_graph(post_dir: os.PathLike, atom_files: str, bond_fi
       atom_files: atom file names (commonly dump*.liggghts, where * is the timestep)
       bond_files: atom file names (commonly bfc*.bonds, where * is the timestep)
       output_path: Path to save the updated atom dataset (NetCDF format).
+      n: integer describing every nth graph we will save.
       
     Returns:
       The updated xarray Dataset with a new 'coordination' variable.
@@ -160,17 +162,16 @@ def save_atom_ds_and_final_graph(post_dir: os.PathLike, atom_files: str, bond_fi
     i = 0
     coordination_numbers = []  
     for bond_fp in bond_filepaths:
-        #ds_bond = process_bond_dump_file(bond_fp)
-        #sparse_mat = create_sparse_coo_matrix(ds_bond, all_atom_ids)
         sparse_mat = process_bond_dump_and_create_sparse_matrix(bond_fp, all_atom_ids)
         # compute coordination nums by summing over rows as matrix is symmetric 
         row_counts = np.array(sparse_mat.sum(axis=1)).flatten()
         coordination_numbers.append(row_counts)
         # save final graph
         i += 1
-        if len(bond_filepaths) == i:
-            save_npz(bond_graph_output_path, sparse_mat)
-            print(f"Saved final graph to {os.path.basename(bond_graph_output_path)}.")
+        if i % n == 0:
+            bond_out = os.path.join(bond_graph_output_path, f'floes_{int(i)}.npz')
+            save_npz(bond_out, sparse_mat)
+            print(f"Saved graph to {os.path.basename(bond_out)}.")
     
     # create an array of shape (n_atoms, n_timesteps)
     coord_array = np.array(coordination_numbers).T  # Transpose so rows correspond to atoms.
@@ -197,16 +198,16 @@ def main():
         return
 
     # delete existing data files
-    bond_output_path = os.path.join(out_dir, 'bonds_final.npz')
-    if os.path.isfile(bond_output_path):
-        os.remove(bond_output_path)
+    bond_output_path = os.path.join(out_dir, 'bonds')
+    # if os.path.isdir(bond_output_path):
+    #     os.rmdir(bond_output_path)
     atom_outpath = os.path.join(out_dir, 'atoms.nc')
     if os.path.isfile(atom_outpath):
         os.remove(atom_outpath) 
 
     # get new files
     save_atom_ds_and_final_graph(post_dir, atom_files="dump*.liggghts", bond_files="bfc*.bond",
-                             atom_ds_output_path=atom_outpath, bond_graph_output_path=bond_output_path)
+                             atom_ds_output_path=atom_outpath, bond_graph_output_path=bond_output_path, n=50)
 
 
 if __name__ == '__main__':

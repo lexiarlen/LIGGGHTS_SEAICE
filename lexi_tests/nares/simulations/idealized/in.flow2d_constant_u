@@ -2,15 +2,15 @@
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
 variable bond_damp_val           equal 0.0        # [-] don't use bond damping
 variable rho_i                   equal 920.0      # [kg/m3] ice density
-variable elastic_modulus         equal 1e7        # [Pa]
+variable elastic_modulus         equal 7.5e7        # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
 variable normal_strength         equal 1e6       # [Pa] bond critical normal strength
-variable shear_strength          equal 5e6      # [Pa] bond critical shear strength 
-variable coeff_rest_pp           equal 0.3       # [-] particle particle
-variable coeff_rest_pw           equal 0.3        # [-] particle wall
+variable shear_strength          equal 50e6      # [Pa] bond critical shear strength 
+variable coeff_rest_pp           equal 0.15       # [-] particle particle
+variable coeff_rest_pw           equal 0.15        # [-] particle wall
 variable mu                      equal 0.6        # [-] particle particle friction
-variable wall_friction           equal 0.0        # [-] wall wall friction   
-variable mean_diameter           equal 1775
+variable wall_friction           equal 1.0        # [-] wall wall friction   
+variable mean_diameter           equal 1750
 
 # Forcing Parameters
 variable rho_o                   equal 1027       # [kg/m3] seawater density
@@ -23,33 +23,14 @@ variable max_wind_speed          equal 22         # [m/s]
 variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
 variable r_o                     equal 4/(PI*${mean_diameter})    
 
-# Parameters for collapse   
-# variable ocean_forcing_coeff_3d     atom 2*${rho_o}*${drag_o}*PI*r^2*${rho_i}/${rho_o}
-# variable atmos_forcing_coeff_3d     atom 2*${rho_a}*${drag_a}*PI*r^2*(${rho_o}-${rho_i})/${rho_o}
-variable ocean_forcing_coeff_2d     atom ${rho_o}*${drag_o}*PI*r*(${rho_i}/${rho_o}+r)
-variable atmos_forcing_coeff_2d     atom ${rho_a}*${drag_a}*PI*r*((${rho_o}-${rho_i})/${rho_o}+r)
-
-variable u_atmos_x               equal 0.0                                                        
-variable u_atmos_y               atom ${max_wind_speed}*-1   # should increase from 0 to 22 over 24 hrs; just start 22 for now.
-variable u_ocean_x               equal 0.0
-variable u_ocean_y               equal -0.15
-
-variable Fdrag_atmos_x           atom v_atmos_forcing_coeff_2d*sqrt(${u_atmos_x}^2+v_u_atmos_y^2)*${u_atmos_x}
-variable Fdrag_atmos_y           atom v_atmos_forcing_coeff_2d*sqrt(${u_atmos_x}^2+v_u_atmos_y^2)*v_u_atmos_y
-variable Fdrag_ocean_x           atom v_ocean_forcing_coeff_2d*sqrt((${u_ocean_x}-vx)^2+(${u_ocean_y}-vy)^2)*(${u_ocean_x}-vx)
-variable Fdrag_ocean_y           atom v_ocean_forcing_coeff_2d*sqrt((${u_ocean_x}-vx)^2+(${u_ocean_y}-vy)^2)*(${u_ocean_y}-vy)
-
-variable dragx                   atom v_Fdrag_atmos_x+v_Fdrag_ocean_x
-variable dragy                   atom v_Fdrag_atmos_y+v_Fdrag_ocean_y
-
 # Numerics & output
-variable dt                      equal 0.05                     
+variable dt                      equal 0.08                     
 variable run_time                equal 36*3600                        # [s] runtime
-variable num_dumps               equal 100   
 variable num_timesteps           equal floor(${run_time}/${dt})
+variable num_dumps               equal 200   
 variable dump_freq               equal floor(${num_timesteps}/${num_dumps})
 variable ts_check_freq           equal 6000
-variable post_dir string post_testing_postprocessing
+variable post_dir                string "post"
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
@@ -63,11 +44,11 @@ hard_particles yes
 processors 1 3 1                        
 
 # Domain
-read_restart restarts/testing_postprocessing.restart
+read_restart restarts/flow72_2d_stiff_packing.restart # terrible naming whoops
 
 # Neighbors
 communicate single vel yes              # ghost particles are given position and velocity information
-neighbor 450 bin                        # skin distance to specify bin size for neighbor list generation
+neighbor 1000 bin                        # skin distance to specify bin size for neighbor list generation
 neigh_modify delay 0                    # don't delay the generation of neighbor lists   
 
 # Bond style
@@ -97,6 +78,29 @@ group active type 1
 # Set Integrator
 fix int active nve/sphere
 fix 2d all enforce2d
+
+# Forcing stuff 
+variable current_step               equal step
+variable current_time               equal v_current_step*${dt} 
+variable wind_speed_increment       equal ${max_wind_speed}/${run_time}
+variable dynamic_wind_speed         equal v_current_time*${wind_speed_increment}
+# variable ocean_forcing_coeff_2d     atom ${rho_o}*${drag_o}*PI*r*(${rho_i}/${rho_o}+r)
+# variable atmos_forcing_coeff_2d     atom ${rho_a}*${drag_a}*PI*r*((${rho_o}-${rho_i})/${rho_o}+r)
+variable ocean_skin_coeff           atom ${rho_o}*${drag_o}*PI*r^2
+variable atmos_skin_coeff           atom ${rho_a}*${drag_a}*PI*r^2
+ 
+variable u_atmos_x               equal 0.0                                                        
+variable u_atmos_y               atom ${max_wind_speed}*-1   # should increase from 0 to 22 over 24 hrs; just start 22 for now.
+variable u_ocean_x               equal 0.0
+variable u_ocean_y               equal 0
+
+variable Fdrag_atmos_x           atom v_atmos_skin_coeff*sqrt(${u_atmos_x}^2+v_u_atmos_y^2)*${u_atmos_x}
+variable Fdrag_atmos_y           atom v_atmos_skin_coeff*sqrt(${u_atmos_x}^2+v_u_atmos_y^2)*v_u_atmos_y
+variable Fdrag_ocean_x           atom v_ocean_skin_coeff*sqrt((${u_ocean_x}-vx)^2+(${u_ocean_y}-vy)^2)*(${u_ocean_x}-vx)
+variable Fdrag_ocean_y           atom v_ocean_skin_coeff*sqrt((${u_ocean_x}-vx)^2+(${u_ocean_y}-vy)^2)*(${u_ocean_y}-vy)
+
+variable dragx                   atom v_Fdrag_atmos_x+v_Fdrag_ocean_x
+variable dragy                   atom v_Fdrag_atmos_y+v_Fdrag_ocean_y
 fix apply_winds all addforce v_dragx v_dragy 0 
 
 # Compute bonds
@@ -109,9 +113,6 @@ thermo_modify lost warn norm no                       # ignore lost atoms and do
 
 # Dump setup
 dump dmp all custom ${dump_freq} ${post_dir}/dump*.liggghts id x y z radius vx vy vz fx fy fz
-# do i need vel data; maybe nice for debugging but what to do with it?, mean vel through the fjord would be helpful, so can get area flux
-# dans 2017 plots vels along fjord center line at dif crucial timesteps
-# west & dans plot principal stresses. this will be expensive to compute because bond and atom stresses
 dump_modify dmp pad 10 sort id first yes   
 
 dump bondforcechain all local ${dump_freq} ${post_dir}/bfc*.bond c_bc[1] c_bc[2] c_bc[3] 
@@ -121,8 +122,8 @@ dump_modify bondforcechain pad 10 label 'BONDS' first yes
 fix dtBond all check/timestep/bond ${ts_check_freq} 0.3                       # check the time step for the bond
 fix ts_check all check/timestep/gran ${ts_check_freq} 0.3 0.3
 
-run ${num_timesteps} # replace with  run X every Y "set atom * property/atom heatSource v_H" maybe
-write_restart restarts/flow96_2d.restart
+run ${num_timesteps} 
+write_restart restarts/flow72_2d_stiff_packing.restart
 
 
 # TODO: need to figure out what data i want. definitely bond data and velocity; also force? review west

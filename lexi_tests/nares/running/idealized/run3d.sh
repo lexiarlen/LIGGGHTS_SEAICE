@@ -25,7 +25,7 @@ start_dir="$(pwd)"
 # Workflow steps
 base_path="/home/arlenlex/LIGGGHTS_SEAICE/lexi_tests/nares/simulations/idealized" 
 output_path="/mnt/c/Users/arlenlex/Documents/liggghts_data/nares/simulations/idealized"
-experiment_name="testing_postprocessing"
+experiment_name="testing_postprocessing3d"
 processors_install=1  
 processors_load=3
 
@@ -45,24 +45,28 @@ if [ -f "$output_dir/atoms.nc" ]; then
     echo "Deleted existing 'atoms.nc' file."
 fi
 
-if [ -f "$output_dir/bonds_final.npz" ]; then
-    rm "$output_dir/bonds_final.npz"
-    echo "Deleted existing 'bonds_final.npz' file."
+if [ -d "$output_dir/bonds" ]; then
+    rm -rf "$output_dir/bonds"
+    echo "Deleted existing 'bonds' folder."
 fi
 
+# make new bonds folder
+bond_dir="${output_dir}/bonds"
+mkdir -p "$bond_dir"
+
 # Step 3: Run in.bond
-echo "Running in.add_bonds"
+echo "Running in.add_bonds3d"
 sed "s|write_restart .*|write_restart restarts/${experiment_name}.restart|" \
-    "$base_path/in.add_bonds" > "$base_path/temp_${experiment_name}.add_bonds"
-run_liggghts "temp_${experiment_name}.add_bonds" "$processors_install" "$base_path"
-rm "$base_path/temp_${experiment_name}.add_bonds"
+    "$base_path/in.add_bonds3d" > "$base_path/temp_${experiment_name}.add_bonds3d"
+run_liggghts "temp_${experiment_name}.add_bonds3d" "$processors_install" "$base_path"
+rm "$base_path/temp_${experiment_name}.add_bonds3d"
 
 # Step 4: Run in.flow2d
-echo "Running in.flow2d"
+echo "Running in.flow_3d"
 sed "s|read_restart .*|read_restart restarts/$experiment_name.restart|; s|variable post_dir .*|variable post_dir string "$post_dir"|" \
-    "$base_path/in.flow2d" > "$base_path/temp_$experiment_name.flow2d"
-run_liggghts "temp_$experiment_name.flow2d" "$processors_load" "$base_path"
-rm "$base_path/temp_$experiment_name.flow2d"
+    "$base_path/in.flow_3d" > "$base_path/temp_$experiment_name.flow_3d"
+run_liggghts "temp_$experiment_name.flow_3d" "$processors_load" "$base_path"
+rm "$base_path/temp_$experiment_name.flow_3d"
 
 # Step 5: Change back to the starting directory
 cd "$start_dir" || exit 1
@@ -75,7 +79,7 @@ if [ ! -f "$base_path/$post_dir" ]; then
     #rm -rf "$base_path/$post_dir"
     
     # Step 8: Run nc2figs.py
-    python3 nc2figs.py --output-dir "$output_dir" --dt 0.08
+    python3 nc2figs.py --output-dir "$output_dir" --dt 0.02
 else 
     echo "Skipping processing, simulation error."
 fi
