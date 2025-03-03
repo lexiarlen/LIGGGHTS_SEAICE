@@ -194,7 +194,7 @@ def main():
     # Construct file paths
     basename = os.path.splitext(os.path.basename(original_fpath))[0]
     repo = os.path.dirname(original_fpath)
-    fixed_file = os.path.join(repo, f"{basename}_fixed4.data")
+    fixed_file = os.path.join(repo, f"{basename}_fixed5.data")
 
     # (1) Read original .data file
 
@@ -208,13 +208,9 @@ def main():
                 cutoff_line = i - 1
                 break
     rows_to_read = cutoff_line - rows_to_skip if cutoff_line is not None else None
-    df_int = pd.read_csv(original_fpath, sep=r'\s+', usecols=[1, 2, 3, 4, 5, 6],
+    df = pd.read_csv(original_fpath, sep=r'\s+', usecols=[1, 2, 3, 4, 5, 6],
                     skiprows=rows_to_skip, nrows=rows_to_read,
                     names=column_names)
-
-    # Reformat dataframe so we're ready to read it out
-    df_int["id"] = range(1, len(df_int) + 1)
-    df_int = df_int.set_index("id")
 
     # (2) Set parameters to install bonds on fake atoms to allow successful import
     x0 = xhi/2
@@ -224,22 +220,14 @@ def main():
     xtri = d * np.cos(60*np.pi/180) 
     ytri = d * np.sin(60*np.pi/180)
 
-    # (2) Get boundary particles
-    df_bdy = get_bdy_particles_coords(d, density)
-
     # (3) Fix Overlaps
 
-    # 3.1 Delete atoms at the very edge that got uplifted
-    df_int = df_int[df_int['z'] <= -4000] # careful of hard coding here!!!! number from visual inspection in Ovito
-    df_int['z'] = np.zeros_like(df_int['z'])
-    #df_int.index = range(1, len(df_int) + 1) # reindex dataframe so that fix overlaps still works
+    # 3.1 Delete bottom row of atoms atoms at the very edge that got uplifted
+    df = df[df['y'] > 0] # careful of hard coding here!!!! number from visual inspection in Ovito
+    df['z'] = np.zeros_like(df['z'])
+    df["id"] = range(1, len(df) + 1)
+    df = df.set_index("id")
 
-    # 3.2 Run overlap code
-    df_int['d'] -= bond_skin_thickness # preliminary diameter adjustment
-
-    # concatenate interior and boundary particle dataframes
-    df = pd.concat([df_bdy, df_int], ignore_index=True)
-    df.index=range(1,len(df)+1)
     df = fix_overlaps_2d(df, repo)
     num_atoms = len(df) 
 
@@ -261,7 +249,7 @@ def main():
 {num_atoms + 7} atoms
 2 atom types
 6 bonds
-1 bond types
+2 bond types
 
 {xlo} {xhi} xlo xhi
 {ylo} {yhi} ylo yhi
@@ -295,7 +283,7 @@ Bonds
 3 1 {num_atoms + 1} {num_atoms + 4}
 4 1 {num_atoms + 1} {num_atoms + 5}
 5 1 {num_atoms + 1} {num_atoms + 6}
-6 1 {num_atoms + 1} {num_atoms + 7}
+6 2 {num_atoms + 1} {num_atoms + 7}
 
 """
 
