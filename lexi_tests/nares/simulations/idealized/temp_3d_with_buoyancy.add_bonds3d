@@ -2,6 +2,7 @@
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
 variable bond_damp_val           equal 0.0        # [-] don't use bond damping
 variable rho_i                   equal 920.0      # [kg/m3] ice density
+variable rho_o                   equal 1027
 variable elastic_modulus         equal 1e8        # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
 variable normal_strength_pp      equal 10e3       # [Pa] bond critical normal strength; material strength always less
@@ -20,15 +21,19 @@ variable max_diameter            equal 2400
 variable bond_skin               equal (1+${bs_multiplier})*${max_diameter}    # [m] 0.1% of the max diameter; will subtract this quantity first when doing the packing fix
 variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
 variable r_o                     equal 2/sqrt((PI*${mean_diameter}))    
+variable rho_i_2d                atom ${rho_i}*3/(4*r)*100
+
+variable forcing_coeff           atom ${rho_o}*10*PI*(r^2)*v_rho_i_2d/${rho_o} 
+variable fdragz                  atom v_forcing_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vz)
+variable fdragxy                 atom 10000*v_forcing_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vz)
 
 # Numerics & output
-variable dt                      equal 0.001              
+variable dt                      equal 0.01              
 
 ### ----------------------------------- build simulation ----------------------------------- ###
 
 # Preliminaries
-units si   
-dimension 2                                                             
+units si                                                              
 atom_style hybrid granular bond/gran n_bondtypes 2 bonds_per_atom 6    
 atom_modify map array sort 0 0                                            
 newton off                                                              
@@ -67,6 +72,10 @@ delete_bonds all atom 1 remove
 group atoms_2_delete id > ${n_atoms}
 delete_atoms group atoms_2_delete
 
+# Set correct density
+set type 1 density v_rho_i_2d
+set type 2 density v_rho_i_2d
+
 # Timestep & insertion
 timestep ${dt}
 run 0
@@ -74,15 +83,23 @@ run 0
 group walls type 2
 group active type 1
 
-# region reg_low_fjord block -1e3 121e3 -2e3 120e3 -0.5e3 0.5e3
-# group low_fjord region reg_low_fjord
-# group atoms2delete intersect active low_fjord
-# delete_atoms group atoms2delete
-
 # Therm config
-thermo 1                                             # set output frequency for output for screen
+thermo 100000                                             # set output frequency for output for screen
 thermo_style custom step numbonds atoms time dt cpu ke                 # custom pringting to screen
 thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
+
+# set atom z coordinate to expedite adjustment 
+set type 1 z 400
+set type 2 z 400
+
+# adjust to hydrostatic equilibrium
+fix int active nve/sphere
+fix grav all gravity 9.81 vector 0 0 -1
+fix buoy all buoyancy dim z level 0.1 density ${rho_o} # can't set water level <= 0, so get close enough
+fix zdrag all addforce 0 v_fdragxy v_fdragz
+
+run 200000
+unfix int
 
 ### ----------------------------------- bond grains ---------------------------------- ###
 
@@ -100,7 +117,6 @@ fix_modify bond_int_int every 0                                      # do not cr
 fix_modify bond_int_wall every 0                                      # do not create new bonds after this line
 fix_modify bond_wall_wall every 0                                      # do not create new bonds after this line
 
-
 ### ----------------------------------- run & output ---------------------------------- ###
 
-write_restart restarts/2kmfloes.restart
+write_restart restarts/3d_with_buoyancy.restart

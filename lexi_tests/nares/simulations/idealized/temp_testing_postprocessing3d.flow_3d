@@ -2,15 +2,15 @@
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
 variable bond_damp_val           equal 0        # [-] don't use bond damping
 variable rho_i_2d                equal 920.0      # [kg/m3] ice density
-variable elastic_modulus         equal 7.5e7       # [Pa]
+variable elastic_modulus         equal 1e8        # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
-variable normal_strength         equal 1e4       # [Pa] bond critical normal strength
-variable shear_strength          equal 50e4      # [Pa] bond critical shear strength 
+variable normal_strength         equal 10e3       # [Pa] bond critical normal strength
+variable shear_strength          equal 50e3      # [Pa] bond critical shear strength 
 variable coeff_rest_pp           equal 0.15       # [-] particle particlez
 variable coeff_rest_pw           equal 0.15        # [-] particle wall
 variable mu                      equal 0.6        # [-] particle particle friction
 variable wall_friction           equal 0.6        # [-] wall wall friction   
-variable mean_diameter           equal 1750
+variable mean_diameter           equal 2090
 
 # Forcing Parameters
 variable rho_o                   equal 1027       # [kg/m3] seawater density
@@ -134,7 +134,7 @@ fix dtBond all check/timestep/bond ${ts_check_freq} 0.3                       # 
 fix ts_check all check/timestep/gran ${ts_check_freq} 0.3 0.3
 
 run ${num_timesteps} # replace with  run X every Y "set atom * property/atom heatSource v_H" maybe
-write_restart restarts/flow24_3d_stiff_packing.restart
+write_restart restarts/flow24_3d_stiff_packing_new_packing.restart
 
 
 # TODO: need to figure out what data i want. definitely bond data and velocity; also force? review west

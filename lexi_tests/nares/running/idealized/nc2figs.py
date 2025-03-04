@@ -125,9 +125,8 @@ def create_bond_broken_animation(ds, output_directory, dt, frame_skip_value=4):
     ax.set_aspect('equal', 'box')
 
     # Create a scalar mappable for bonds broken.
-    # We fix the normalization to 0 to 5 (i.e. maximum 5 bonds broken).
     cmap = cm.Reds  
-    norm = mcolors.Normalize(vmin=0, vmax=5)
+    norm = mcolors.Normalize(vmin=0, vmax=6)
     sm = cm.ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
     cbar = plt.colorbar(sm, ax=ax, shrink=0.8)
@@ -179,9 +178,7 @@ def create_bond_broken_animation(ds, output_directory, dt, frame_skip_value=4):
             circles[atom_id].center = (x[idx], y[idx])
             # Retrieve the precomputed bonds broken for this atom at the current timestep.
             bonds_broken = bbroken_colors[atom_id][frame]
-            # Clamp the value to a maximum of 5.
-            bonds_broken = min(bonds_broken, 5)
-            # Map the bonds broken to a color.
+            bonds_broken = min(bonds_broken, 6)
             color = sm.to_rgba(bonds_broken)
             circles[atom_id].set_facecolor(color)
 
@@ -201,7 +198,7 @@ def create_bond_broken_animation(ds, output_directory, dt, frame_skip_value=4):
 
     os.makedirs(output_directory, exist_ok=True)
     fpath = os.path.join(output_directory, 'bbroken.gif')
-    ani.save(fpath, writer='Pillow', fps=3, dpi = 100)
+    ani.save(fpath, writer='Pillow', fps=5, dpi = 100)
 
 
 def plot_final_floes(t:int, ds:xr.Dataset, dt:float, output_dir:os.PathLike,
@@ -303,15 +300,6 @@ def create_coord_num_animation(ds, output_directory, dt, frame_skip_value=4):
     ax.set_ylabel("[km]")
     ax.set_aspect('equal', 'box')
 
-    # Create a scalar mappable for bonds broken.
-    # We fix the normalization to 0 to 5 (i.e. maximum 5 bonds broken).
-    cmap = cm.Reds  
-    norm = mcolors.Normalize(vmin=0, vmax=5)
-    sm = cm.ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax, shrink=0.8)
-    cbar.set_label('Bonds Broken')
-
     # Get atom ids.
     atom_ids = ds['id'].values
 
@@ -370,7 +358,7 @@ def create_coord_num_animation(ds, output_directory, dt, frame_skip_value=4):
 
     os.makedirs(output_directory, exist_ok=True)
     fpath = os.path.join(output_directory, 'coordnum.gif')
-    ani.save(fpath, writer='Pillow', fps=3, dpi = 100)
+    ani.save(fpath, writer='Pillow', fps=5, dpi = 100)
 
 
 def plot_final_floes(t:int, ds:xr.Dataset, dt:float, output_dir:os.PathLike,
@@ -436,16 +424,16 @@ def plot_final_floes(t:int, ds:xr.Dataset, dt:float, output_dir:os.PathLike,
             col = (0.5, 0.5, 0.5, 1)  # color unbonded particles black
         circle = Circle((initial_x, initial_y), radius, color=col, alpha=0.5)
         ax.add_patch(circle)
-
-    ax.set_title(f'Floes at Time = {np.round((ds['timestep'].values*dt)/3600, decimals =1)} hrs')
-    fig.savefig(os.path.join(output_dir, "final_floes.jpg"), dpi=300, bbox_inches="tight")
+    time = np.round((ds['timestep'].values*dt)/3600, decimals =1)
+    ax.set_title(f'Floes at Time = {time} hrs')
+    fig.savefig(os.path.join(output_dir, f"bonds/floes{time}.jpg"), dpi=300)
 
 def get_bond_fsd_from_graph(scipy_sparse_graph):
     number_of_connected_components, labels = connected_components(csgraph=scipy_sparse_graph, directed=False, return_labels=True)
     component_sizes = np.bincount(labels)
     return number_of_connected_components, labels, component_sizes
 
-def plot_fsd(component_sizes, output_directory):
+def plot_fsd(component_sizes, time, output_directory):
     fig = plt.figure()
     hist, bin_edges = np.histogram(component_sizes, bins=np.logspace(0, np.log2(np.max(component_sizes))+0.1, 10, base = 2))
     plt.scatter(bin_edges[1:], hist/bin_edges[1:], s = 40, color = 'g')
@@ -453,10 +441,9 @@ def plot_fsd(component_sizes, output_directory):
     plt.yscale('log')
     plt.xlabel(r'DEs / floe')
     plt.ylabel(r'Floe # Density')
-    plt.title('FSD')
+    plt.title(f'FSD at Time = {time} hrs')
     plt.grid()
-
-    outpath = os.path.join(output_directory, 'fsd.jpg')
+    outpath = os.path.join(output_directory, f'bonds/fsd{time}.jpg')
     plt.savefig(outpath, dpi = 300)
     plt.close()
 
@@ -467,8 +454,8 @@ def get_velocity_profile(v, y, bin_size = 5e3):
         y: (1d array) of atom y coordinates at timestep t
 
     """
-    y_min = y.min()
-    y_max = y.max()
+    y_min = np.nanmin(y)
+    y_max = np.nanmax(y)
     bins = np.arange(y_min, y_max + bin_size, bin_size)
     bin_indices = np.digitize(y, bins) - 1
     bin_indices[bin_indices == len(bins) - 1] = len(bins) - 2 # fix edge case
@@ -510,7 +497,7 @@ def plot_velocity_transects(ds_a, dt, timesteps, output_directory):
         #ax.set_xlim(-0.1, 0.1)
         ax.legend()
         ax.set_title(f'Time = {np.round(time/3600, decimals = 1)} hrs')
-        fig.savefig(os.path.join(output_directory, f'vel_prof{np.round(time)}.jpg'), dpi = 300)
+        fig.savefig(os.path.join(output_directory, f'vel_profs/vel_prof{np.round(time)}.jpg'), dpi = 300)
         plt.close()
 
 
@@ -531,11 +518,9 @@ if __name__ == '__main__':
     bdir_path = os.path.join(output_directory, 'bonds')
     fpaths_b = sorted(os.path.join(bdir_path, f) for f in os.listdir(bdir_path))
     ds_a = xr.open_dataset(fpath_a)
-    #graph = load_npz(fpath_b)
 
     # Define/get some arrays
     n_atoms = ds_a.attrs['number_of_atoms'].item()
-    #
     num_dumps = 200
     v_plot_freq = 40
     times_to_save = np.linspace(0, num_dumps, v_plot_freq).astype(int)
@@ -546,11 +531,11 @@ if __name__ == '__main__':
     for fp_b in fpaths_b:
         basename = os.path.basename(fp_b)
         n = int(basename.split('_')[1].split('.')[0])
-        print(n)
         graph = load_npz(fp_b)
         number_of_connected_components, labels, component_sizes = get_bond_fsd_from_graph(graph)
+        time = dt*ds_a['timestep'].isel(timestep = n).values
         plot_final_floes(n, ds_a, dt, output_directory, labels, component_sizes, number_of_connected_components)
-        plot_fsd(component_sizes, output_directory)
+        plot_fsd(component_sizes, time, output_directory)
     create_bond_broken_animation(ds_a, output_directory, dt, frame_skip_value=1)
     #plot_initial_coord_nums(ds_a, output_directory)
     #create_coord_num_animation(ds_a, output_directory, dt, frame_skip_value=1)

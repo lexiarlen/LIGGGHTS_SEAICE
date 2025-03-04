@@ -25,9 +25,9 @@ start_dir="$(pwd)"
 # Workflow steps
 base_path="/home/arlenlex/LIGGGHTS_SEAICE/lexi_tests/nares/simulations/idealized" 
 output_path="/mnt/c/Users/arlenlex/Documents/liggghts_data/nares/simulations/idealized"
-experiment_name="suppa_fast_windz_with_e"
+experiment_name="free_drift_check"
 processors_install=1  
-processors_load=2
+processors_load=1
 
 # Step 1: Create output directory
 output_dir=$(create_output_dirs "$output_path" "$experiment_name")
@@ -63,20 +63,12 @@ mkdir -p "$bond_dir"
 vel_dir="${output_dir}/vel_profs"
 mkdir -p "$vel_dir"
 
-# Step 3: Run in.bond
-echo "Running in.add_bonds"
-sed "s|write_restart .*|write_restart restarts/${experiment_name}.restart|" \
-    "$base_path/in.add_bonds" > "$base_path/temp_${experiment_name}.add_bonds"
-run_liggghts "temp_${experiment_name}.add_bonds" "$processors_install" "$base_path"
-rm "$base_path/temp_${experiment_name}.add_bonds"
 
-# Step 4: Run in.flow2d
-echo "Running in.flow2d"
-sed "s|read_restart .*|read_restart restarts/$experiment_name.restart|; s|variable post_dir .*|variable post_dir string "${post_dir}"|; \
-    s|write_restart .*|write_restart restarts/${experiment_name}_increasing_u.restart|" \
-    "$base_path/in.flow2d" > "$base_path/temp_$experiment_name.flow2d"
-run_liggghts "temp_$experiment_name.flow2d" "$processors_load" "$base_path"
-rm "$base_path/temp_$experiment_name.flow2d"
+# Step 4: Run in.test_free_drift
+echo "Running in.test_free_drift"
+sed '' "$base_path/in.test_free_drift" > "$base_path/temp_$experiment_name.test_free_drift"
+run_liggghts "temp_$experiment_name.test_free_drift" "$processors_load" "$base_path"
+rm "$base_path/temp_$experiment_name.test_free_drift"
 
 
 # # Step 5: Run in.flow2d_constant_u

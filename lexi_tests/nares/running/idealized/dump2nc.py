@@ -165,7 +165,8 @@ def save_atom_ds_and_final_graph(post_dir: os.PathLike, atom_files: str, bond_fi
         sparse_mat = process_bond_dump_and_create_sparse_matrix(bond_fp, all_atom_ids)
         # compute coordination nums by summing over rows as matrix is symmetric 
         row_counts = np.array(sparse_mat.sum(axis=1)).flatten()
-        coordination_numbers.append(row_counts)
+        col_counts = np.array(sparse_mat.sum(axis=0)).flatten()
+        coordination_numbers.append(row_counts + col_counts)
         # save final graph
         i += 1
         if i % n == 0:

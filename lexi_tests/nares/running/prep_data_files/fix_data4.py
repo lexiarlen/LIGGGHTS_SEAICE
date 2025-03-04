@@ -235,7 +235,7 @@ def main():
     #df_int.index = range(1, len(df_int) + 1) # reindex dataframe so that fix overlaps still works
 
     # 3.2 Run overlap code
-    df_int['d'] -= bond_skin_thickness # preliminary diameter adjustment
+    #df_int['d'] -= bond_skin_thickness # preliminary diameter adjustment
 
     # concatenate interior and boundary particle dataframes
     df = pd.concat([df_bdy, df_int], ignore_index=True)

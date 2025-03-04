@@ -13,7 +13,7 @@ base_path="/home/arlenlex/LIGGGHTS_SEAICE/lexi_tests/nares/simulations/create_pa
 read -p "Enter the name of the original *.data file (from $base_path): " rel_sim_folder
 repo="$base_path/$rel_sim_folder"
 
-read -p "Bond skin thickness? (press Enter to use default = 0.001*1500): " bond_skin_thickness
+read -p "Bond skin thickness? (press Enter to use default = 0.001*1000): " bond_skin_thickness
 
 # Check if bond_skin_thickness is provided
 if [[ -z "$bond_skin_thickness" ]]; then

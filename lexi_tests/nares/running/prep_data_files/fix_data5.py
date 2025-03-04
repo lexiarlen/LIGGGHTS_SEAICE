@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import xarray as xr
 
 
-def fix_overlaps_2d(df, repo, max_iters = 2000, ini_d_adj = 0.01, lr = 0.8):
+def fix_overlaps_2d(df, repo, max_iters = 2000, ini_d_adj = 0.01, lr = 0.70):
     """
     Adjust diameters so that no two particles overlap. Before doing this, shrink the 
     particle diameter by the bond_skin_thickness. By design, in the packing process,
@@ -70,6 +70,7 @@ def fix_overlaps_2d(df, repo, max_iters = 2000, ini_d_adj = 0.01, lr = 0.8):
     ax.set_ylabel('# Fixed Overlaps')
     plt.show()
     plt.savefig(os.path.join(repo, f'overlaps_newfunc_{ini_d_adj}.jpg'), dpi=300, bbox_inches='tight')
+    plt.close()
     return df
 
 def get_line(xi, xf, yi, yf, d):
@@ -227,6 +228,7 @@ def main():
     df['z'] = np.zeros_like(df['z'])
     df["id"] = range(1, len(df) + 1)
     df = df.set_index("id")
+    df['d'] -= bond_skin_thickness
 
     df = fix_overlaps_2d(df, repo)
     num_atoms = len(df) 

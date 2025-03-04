@@ -25,13 +25,15 @@ start_dir="$(pwd)"
 # Workflow steps
 base_path="/home/arlenlex/LIGGGHTS_SEAICE/lexi_tests/nares/simulations/idealized" 
 output_path="/mnt/c/Users/arlenlex/Documents/liggghts_data/nares/simulations/idealized"
-experiment_name="3d_with_buoyancy"
+experiment_name="3d_test_next36"
 processors_install=1  
 processors_load=2
 
 # Step 1: Create output directory
 output_dir=$(create_output_dirs "$output_path" "$experiment_name")
 post_dir="post_${experiment_name}"
+
+# Step 2: Remove existing post directory & output files
 
 # Step 2: Remove existing post directory & output files
 
@@ -50,48 +52,30 @@ if [ -d "$output_dir/bonds" ]; then
     echo "Deleted existing 'bonds' folder."
 fi
 
-if [ -d "$output_dir/vel_profs" ]; then
-    rm -rf "$output_dir/vel_profs"
-    echo "Deleted existing 'vel_profs' folder."
-fi
-
 # make new bonds folder
 bond_dir="${output_dir}/bonds"
 mkdir -p "$bond_dir"
 
-# make new bonds folder
-vel_dir="${output_dir}/vel_profs"
-mkdir -p "$vel_dir"
+echo "Running in.flow3d_constant_u"
+sed  "s|variable post_dir .*|variable post_dir string "$post_dir"|" \
+    "$base_path/in.flow3d_constant_u" > "$base_path/temp_$experiment_name.flow3d_constant_u"
+run_liggghts "temp_$experiment_name.flow3d_constant_u" "$processors_load" "$base_path"
+rm "$base_path/temp_$experiment_name.flow3d_constant_u"
 
-# Step 3: Run in.bond
-echo "Running in.add_bonds3d"
-sed "s|write_restart .*|write_restart restarts/${experiment_name}.restart|" \
-    "$base_path/in.add_bonds3d" > "$base_path/temp_${experiment_name}.add_bonds3d"
-run_liggghts "temp_${experiment_name}.add_bonds3d" "$processors_install" "$base_path"
-rm "$base_path/temp_${experiment_name}.add_bonds3d"
-
-# Step 4: Run in.flow2d
-echo "Running in.flow3d"
-sed "s|read_restart .*|read_restart restarts/$experiment_name.restart|; s|variable post_dir .*|variable post_dir string "${post_dir}"|; \
-    s|write_restart .*|write_restart restarts/${experiment_name}_increasing_u.restart|" \
-    "$base_path/in.flow3d" > "$base_path/temp_$experiment_name.flow3d"
-run_liggghts "temp_$experiment_name.flow3d" "$processors_load" "$base_path"
-rm "$base_path/temp_$experiment_name.flow3d"
-
-# Step 6: Change back to the starting directory
+# Step 5: Change back to the starting directory
 cd "$start_dir" || exit 1
 
 if [ ! -f "$base_path/$post_dir" ]; then
-    # Step 7: Run dump2nc.py
+    # Step 6: Run dump2nc.py
     python3 dump2nc.py "$base_path/$post_dir" "$output_dir"
 
-    # Step 8: remove post directory
+    # Step 7: remove post directory
     #rm -rf "$base_path/$post_dir"
     
-    # Step 9: Run nc2figs.py
-    python3 nc2figs.py --output-dir "$output_dir" --dt 0.05
+    # Step 8: Run nc2figs.py
+    python3 nc2figs.py --output-dir "$output_dir" --dt 0.04
 else 
     echo "Skipping processing, simulation error."
 fi
 
-# Step 10: Delete the output files to save space
+# Step 9: Delete the output files to save space
