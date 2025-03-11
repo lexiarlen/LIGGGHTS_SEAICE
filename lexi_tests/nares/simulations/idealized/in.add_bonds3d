@@ -15,7 +15,7 @@ variable mu                      equal 0.6        # [-] particle particle fricti
 variable wall_friction           equal 0.1        # [-] wall wall friction   
 variable bs_multiplier           equal 0.001      # [-] bond skin multiplier 
 variable mean_diameter           equal 2090
-variable max_diameter            equal 2400
+variable max_diameter            equal 2200
 
 # Derived Properties & Parameters
 variable bond_skin               equal (1+${bs_multiplier})*${max_diameter}    # [m] 0.1% of the max diameter; will subtract this quantity first when doing the packing fix
@@ -23,7 +23,7 @@ variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_r
 variable r_o                     equal 2/sqrt((PI*${mean_diameter}))    
 variable rho_i_2d                atom ${rho_i}*3/(4*r)*100
 
-variable forcing_coeff           atom ${rho_o}*10000*PI*(r^2)*${rho_i}/${rho_o} 
+variable forcing_coeff           atom ${rho_o}*1000*PI*(r^2)*${rho_i}/${rho_o} 
 variable fdragx                  atom 200000*v_forcing_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vx)
 variable fdragy                  atom 200000*v_forcing_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vy)
 variable fdragz                  atom v_forcing_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)*(-1*vz)
@@ -31,7 +31,7 @@ variable fdragz                  atom v_forcing_coeff*sqrt((vx)^2+(vy)^2+(vz)^2)
 # Numerics & output
 variable run_time                equal 1*3600                        # [s] runtime
 variable num_timesteps           equal 100000#floor(${run_time}/${dt})
-variable num_dumps               equal 100   
+variable num_dumps               equal 50   
 variable dump_freq               equal floor(${num_timesteps}/${num_dumps})
 variable dt                      equal 0.01              
 
@@ -46,11 +46,11 @@ hard_particles yes
 processors * * *                        
 
 # Domain
-read_data data/2kmfloes_mono_fixed4.data 
+read_data data/2kmfloes_mono_fixed_3d.data 
 
 # Neighbors
 communicate single vel yes              # ghost particles are given position and velocity information
-neighbor 450 bin                        # skin distance to specify bin size for neighbor list generation
+neighbor 750 bin                        # skin distance to specify bin size for neighbor list generation
 neigh_modify delay 0                    # don't delay the generation of neighbor lists   
 
 # Bond style
@@ -77,6 +77,10 @@ delete_bonds all atom 1 remove
 group atoms_2_delete id > ${n_atoms}
 delete_atoms group atoms_2_delete
 
+# Reduce diameters by 10% !!!
+# variable new_diam atom 2*r-200 # take off 10% # for very small particles, took off 20%...
+# set group all_atoms diameter v_new_diam
+
 # Timestep & insertion
 timestep ${dt}
 run 0
@@ -85,43 +89,41 @@ group walls type 2
 group active type 1
 
 # Therm config
-thermo 100000                                             # set output frequency for output for screen
+thermo 10000                                             # set output frequency for output for screen
 thermo_style custom step numbonds atoms time dt cpu ke                 # custom pringting to screen
 thermo_modify lost warn norm no                       # ignore lost atoms and do not normalize output
 
 # Dump setup
-dump dmp all custom ${dump_freq} post_buoy/dump*.liggghts id x y z radius vx vy vz fx fy fz
+dump dmp all custom ${dump_freq} post_buoy/dump*.liggghts id x y z radius vx vy vz fx fy fz type
 dump_modify dmp pad 10 sort id first yes 
-
-# set atom z coordinate to expedite adjustment 
-set type 1 z -620
-set type 2 z -620
 
 # adjust to hydrostatic equilibrium
 fix int active nve/sphere
 fix grav all gravity 9.81 vector 0 0 -1
-fix buoy all buoyancy dim z level 0.1 density ${rho_o} # can't set water level <= 0, so get close enough
+fix buoy all buoyancy dim z level 1000 density ${rho_o} 
 fix zdrag all addforce v_fdragx v_fdragy v_fdragz
 
-run ${num_timesteps}
-unfix int
+run 100000
+# unfix int
 
-### ----------------------------------- bond grains ---------------------------------- ###
+# ### ----------------------------------- bond grains ---------------------------------- ###
 
-fix bond_int_int all bond/create/gran 1 1 1 ${bond_skin} 1 6        # nevery itype jtype bondskin btype newperts
-fix bond_int_wall all bond/create/gran 1 1 2 ${bond_skin} 2 6        # nevery itype jtype bondskin btype newperts
-fix bond_wall_wall all bond/create/gran 1 2 2 ${bond_skin} 2 6        # nevery itype jtype bondskin btype newperts
+# fix bond_int_int all bond/create/gran 1 1 1 ${bond_skin} 1 6        # nevery itype jtype bondskin btype newperts
+# fix bond_int_wall all bond/create/gran 1 1 2 ${bond_skin} 2 6        # nevery itype jtype bondskin btype newperts
+# fix bond_wall_wall all bond/create/gran 1 2 2 ${bond_skin} 2 6        # nevery itype jtype bondskin btype newperts
 
-fix dtBond all check/timestep/bond 1 0.3                       # check the time step for the bond
+# fix dtBond all check/timestep/bond 1 0.3                       # check the time step for the bond
 
-run 1                                                          # bond grains
+# run 1                                                          # bond grains
 
-unfix dtBond                                                   # stop checking bond timestep (not doing anymore bonding)
+# unfix dtBond                                                   # stop checking bond timestep (not doing anymore bonding)
 
-fix_modify bond_int_int every 0                                      # do not create new bonds after this line
-fix_modify bond_int_wall every 0                                      # do not create new bonds after this line
-fix_modify bond_wall_wall every 0                                      # do not create new bonds after this line
+# fix_modify bond_int_int every 0                                      # do not create new bonds after this line
+# fix_modify bond_int_wall every 0                                      # do not create new bonds after this line
+# fix_modify bond_wall_wall every 0                                      # do not create new bonds after this line
 
-### ----------------------------------- run & output ---------------------------------- ###
+# ### ----------------------------------- run & output ---------------------------------- ###
 
-#write_restart restarts/2kmfloes.restart
+# run 10000
+
+# write_restart restarts/2kmfloes3d.restart

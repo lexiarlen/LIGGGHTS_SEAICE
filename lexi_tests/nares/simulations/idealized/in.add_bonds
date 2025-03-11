@@ -4,17 +4,17 @@ variable bond_damp_val           equal 0.0        # [-] don't use bond damping
 variable rho_i                   equal 920.0      # [kg/m3] ice density
 variable elastic_modulus         equal 1e8        # [Pa]
 variable poissons_ratio          equal 0.3        # [-]
-variable normal_strength_pp      equal 10e3       # [Pa] bond critical normal strength; material strength always less
-variable shear_strength_pp       equal 50e3       # [Pa] bond critical shear strength 
-variable normal_strength_pw      equal 10e6       # [Pa] bond critical normal strength; material strength always less
-variable shear_strength_pw       equal 50e6       # [Pa] bond critical shear strength 
+variable normal_strength_pp      equal 50e3       # [Pa] bond critical normal strength; material strength always less
+variable shear_strength_pp       equal 100e3       # [Pa] bond critical shear strength 
+variable normal_strength_pw      equal 50e4       # [Pa] bond critical normal strength; material strength always less
+variable shear_strength_pw       equal 100e4       # [Pa] bond critical shear strength 
 variable coeff_rest_pp           equal 0.15       # [-] particle particle
 variable coeff_rest_pw           equal 0.15        # [-] particle wall
 variable mu                      equal 0.6        # [-] particle particle friction
-variable wall_friction           equal 0.1        # [-] wall wall friction   
+variable wall_friction           equal 0.6        # [-] wall wall friction   
 variable bs_multiplier           equal 0.001      # [-] bond skin multiplier 
 variable mean_diameter           equal 2090
-variable max_diameter            equal 2400
+variable max_diameter            equal 2300
 
 # Derived Properties & Parameters
 variable bond_skin               equal (1+${bs_multiplier})*${max_diameter}    # [m] 0.1% of the max diameter; will subtract this quantity first when doing the packing fix
@@ -40,7 +40,7 @@ read_data data/2kmfloes_mono_fixed4.data
 
 # Neighbors
 communicate single vel yes              # ghost particles are given position and velocity information
-neighbor 450 bin                        # skin distance to specify bin size for neighbor list generation
+neighbor 1000 bin                        # skin distance to specify bin size for neighbor list generation
 neigh_modify delay 0                    # don't delay the generation of neighbor lists   
 
 # Bond style
@@ -66,6 +66,12 @@ variable n_atoms equal count(all_atoms)-14
 delete_bonds all atom 1 remove
 group atoms_2_delete id > ${n_atoms}
 delete_atoms group atoms_2_delete
+
+
+# Reduce diameters by 10% !!!
+variable new_diam atom 2*r-200 # take off 10% # for very small particles, took off 20%...
+set group all_atoms diameter v_new_diam
+
 
 # Timestep & insertion
 timestep ${dt}

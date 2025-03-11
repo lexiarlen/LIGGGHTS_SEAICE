@@ -1,7 +1,9 @@
 # Methodology: fill the bottom, then add rectangles at the top till full up to fjord height.
 
 # Material Properties - all but diameter and density will be modified in postprocessing
-variable true_mean_diameter      equal 1000         # [m] max particle diameter
+variable max_diameter            equal 10e3    
+variable min_diameter            equal 0.5e3
+variable alpha                   equal -2.1
 variable bond_damp_type          equal 1          # [-] Use Yu Guo Damping
 variable bond_damp_val           equal 0.0        # [-] don't use bond damping
 variable rho_i                   equal 920.0      # [kg/m3] ice density
@@ -13,7 +15,6 @@ variable coeff_rest              equal 0.1        # [-] particle particle
 variable mu                      equal 0.1        # [-] particle particle friction
 variable wall_friction           equal 0.5        # [-] wall wall friction  
 variable poly                    equal 0.1        # [%] polydispersity    
-variable bs_multiplier           equal 0.001      # [-] bond skin multiplier           
 
 # Simulation Parameters
 variable phi                     equal 0.6      # [-] initial packing fraction
@@ -29,13 +30,6 @@ variable minz                    equal -550
 variable maxz                    equal 10e3+${pad1}
 
 # Derived Properties & Parameters
-variable true_max_diameter       equal ${true_mean_diameter}*(1+${poly}) # [m] max particle diameter
-variable true_min_diameter       equal ${true_mean_diameter}*(1-${poly}) # [m] min particle diameter
-variable bond_skin_thickness     equal ${bs_multiplier}*${true_max_diameter}    # [m] 0.1% of the max diameter; will subtract this quantity first when doing the packing fix
-variable max_diameter            equal ${true_max_diameter}+${bond_skin_thickness}       # [m] max particle diameter for packing 
-variable min_diameter            equal ${true_min_diameter}+${bond_skin_thickness}       # [m] min particles diameter for packing; added 0.0001 for first step in shrinking
-variable mean_diameter           equal (${min_diameter}+${max_diameter})/2       # [m] mean particle diameter for packing; added 0.0001 for first step in shrinking
-variable max_radius              equal ${max_diameter}/2 # particle max radius
 variable shear_modulus           equal ${elastic_modulus}/(2.0*(1.0+${poissons_ratio})) # assume isotropy
 
 # Particle insertion
@@ -69,7 +63,7 @@ processors * * *
 boundary m m m                        
 
 # Domain                                                        
-read_data data/boundary_particles_4000m.data
+read_data data/boundary_particles_1000m_tall.data
 
 communicate single vel yes              # ghost particles are given position and velocity information
 neighbor 450 bin                        # skin distance to specify bin size for neighbor list generation

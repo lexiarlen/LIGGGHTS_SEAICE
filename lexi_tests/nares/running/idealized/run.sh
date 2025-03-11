@@ -25,7 +25,7 @@ start_dir="$(pwd)"
 # Workflow steps
 base_path="/home/arlenlex/LIGGGHTS_SEAICE/lexi_tests/nares/simulations/idealized" 
 output_path="/mnt/c/Users/arlenlex/Documents/liggghts_data/nares/simulations/idealized"
-experiment_name="suppa_fast_windz_with_e"
+experiment_name="15ms_max_wind_speed"
 processors_install=1  
 processors_load=2
 
@@ -77,14 +77,6 @@ sed "s|read_restart .*|read_restart restarts/$experiment_name.restart|; s|variab
     "$base_path/in.flow2d" > "$base_path/temp_$experiment_name.flow2d"
 run_liggghts "temp_$experiment_name.flow2d" "$processors_load" "$base_path"
 rm "$base_path/temp_$experiment_name.flow2d"
-
-
-# # Step 5: Run in.flow2d_constant_u
-# echo "Running in.flow2d_constant_u"
-# sed "s|read_restart .*|read_restart restarts/${experiment_name}_increasing_u.restart|; s|variable post_dir .*|variable post_dir string "${post_dir}"|" \
-#     "$base_path/in.flow2d_constant_u" > "$base_path/temp_$experiment_name.flow2d_constant_u"
-# run_liggghts "temp_$experiment_name.flow2d_constant_u" "$processors_load" "$base_path"
-# rm "$base_path/temp_$experiment_name.flow2d_constant_u"
 
 # Step 6: Change back to the starting directory
 cd "$start_dir" || exit 1

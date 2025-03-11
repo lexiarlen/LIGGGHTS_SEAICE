@@ -522,7 +522,7 @@ if __name__ == '__main__':
     # Define/get some arrays
     n_atoms = ds_a.attrs['number_of_atoms'].item()
     num_dumps = 200
-    v_plot_freq = 40
+    v_plot_freq = 10
     times_to_save = np.linspace(0, num_dumps, v_plot_freq).astype(int)
 
     
